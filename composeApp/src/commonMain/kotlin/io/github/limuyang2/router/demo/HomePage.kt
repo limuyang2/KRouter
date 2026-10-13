@@ -52,7 +52,7 @@ fun HomePage() {
                 DemoCase("07 · Owner 外置拦截器", "test://test/owner-detail?ids=7&source=8", "names 显示 TestData(a=Owner interceptor data)。") { navigator.push("test://test/owner-detail?ids=7&source=8") }
             }
             "结果回传" -> {
-                DemoCase("08 · 结果接收方式", "Consumer / callback / URL / 定向返回", "在独立验证页发起请求，返回后观察 Success 或 NoResult；定向结果显示在首页。") { navigator.push(Router.Verification("results")) }
+                DemoCase("08 · 结果接收方式", "实例跳转 / URL 跳转 / 定向返回", "使用 Consumer 接收 Success 或 NoResult；定向返回的结果显示在首页。") { navigator.push(Router.Verification("results")) }
                 DemoCase("09 · 中间页移除与结果取消", "A → B → C", "正常路径：B 收到 C 的结果；替换 B：A 收到 Cancelled，C 的结果不会冒充 B 的结果。") { navigator.push(Router.PopBugA()) }
             }
             "导航栈" -> {

@@ -4,23 +4,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import io.github.limuyang2.router.rememberRouteResult
 import kotlinx.collections.immutable.ImmutableCollection
 
 @Composable
-fun DetailPage(id: ImmutableCollection<Int>, names: TestData, source: Int, resultState: DemoResultState) {
+fun DetailPage(id: ImmutableCollection<Int>, names: TestData, source: Int) {
     DemoBackHandler(true) {
         navigator.pop()
     }
 
-    var lastResult by resultState.result
+    var lastResult by rememberSaveable { mutableStateOf<String?>(null) }
+    var businessValue by rememberSaveable { mutableStateOf<String?>(null) }
     val detailResultConsumer = rememberRouteResult<DetailResult> { result ->
-        lastResult = result.get()?.str
+        lastResult = result.toString()
+        businessValue = result.get()?.str
     }
-    val urlResultConsumer = rememberRouteResult<Any>(key = "url-result") { result ->
-        lastResult = result.get().toString()
+    val urlResultConsumer = rememberRouteResult<DetailResult>(key = "url-result") { result ->
+        lastResult = result.toString()
+        businessValue = result.get()?.str
     }
 
     DemoScreen(
@@ -44,10 +49,11 @@ fun DetailPage(id: ImmutableCollection<Int>, names: TestData, source: Int, resul
         if (lastResult != null) {
             DemoInfoCard(
                 title = "实际接收结果",
-                body = "最近一次 Consumer、callback 或 URL 请求收到的结果：",
+                body = "由当前 Composition 注册的 Consumer 接收，分别展示完整结果和业务值。",
             ) {
                 DemoSectionSpacer()
                 DemoBulletRow(label = "result", value = lastResult!!)
+                DemoBulletRow(label = "业务值", value = businessValue ?: "无业务值")
             }
         }
 
@@ -57,20 +63,10 @@ fun DetailPage(id: ImmutableCollection<Int>, names: TestData, source: Int, resul
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 DemoActionButton(
-                    title = "打开结果回传页（Consumer）",
+                    title = "打开结果回传页（实例方式）",
                     description = "使用 rememberRouteResult 绑定 DetailResult。",
                     onClick = {
                         navigator.pushForResult(Router.Result(null), resultTo = detailResultConsumer)
-                    },
-                )
-
-                DemoActionButton(
-                    title = "打开结果回传页（RouteResult callback）",
-                    description = "直接使用 pushForResult，返回后在本页显示完整结果。",
-                    onClick = {
-                        navigator.pushForResult<DetailResult>(Router.Result(null)) { result ->
-                            lastResult = result.toString()
-                        }
                     },
                 )
 

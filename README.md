@@ -1,796 +1,499 @@
-# Library Router
+# KRouter
 
-面向 Compose `navigation3` 的路由框架，支持：
+面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
-- `@Router` + KSP 自动生成路由表和 `NavDisplay` entry 注册代码
-- URL 跳转和对象跳转
-- `@RouterParam` 自动注入参数
-- 页面级 / 全局 Push、Pop 拦截器
-- 页面结果回传
-- `URL -> RouteClass` 查询
+**项目状态：开发中，尚未发布。**
 
-## Demo 功能验证
+## 项目定位
 
-`composeApp` 首页为「路由验证台」，按跳转与参数、拦截器、结果回传、导航栈、跨模块五类组织用例。每个入口给出输入和预期结果，目标页面显示实际参数或接收结果；所有页面使用相同布局与主题，顶部导航栈从左到右展示栈底到栈顶。
+本项目不是 Vibe Coding 项目。KRouter 以明确的 API 语义、可维护的实现、代码审查和可复现的回归测试为开发基础，重点关注页面实例身份、异步返回目标绑定、结果生命周期与多模块注册等导航行为。
 
-未注册 URL 用例由 Demo 在 `routeFailureCallback` 中打开兜底页，保留原始 URL；运行库本身会拒绝未匹配 URL 并保持导航栈。未注册实例则通过 `NavDisplay` 的 fallback 展示兜底内容。
+KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示、场景策略及页面状态管理通过 Navigation 3 的 `NavDisplay` 和 entry decorators 接入。
 
-- 结果回传：选择 Consumer、callback 或 URL 方式，在结果页携带结果返回或不带结果关闭，对照 `Success` / `NoResult`；定向返回的结果显示在首页。
-- callback 示例将展示状态保存在路由页面实例中，确保页面离开 Composition 后重建时仍能读到回调结果。普通 callback 保留发起时的闭包；Compose 页面使用局部状态接收结果时，推荐 `rememberRouteResult` 的 Consumer 方式。
-- 导航栈：清栈后观察仅剩一个页面，尝试返回验证根页保护，再点击「重建首页」恢复入口。A/B/C 用例对照正常返回和替换中间页后的 `Cancelled`。
-- 跨模块：通过商品 URL 或账户实例进入业务模块，再到共享帮助页返回结果，观察接收次数。
+## 功能
 
-桌面运行：`./gradlew :desktopApp:run`；Android 构建：`./gradlew :androidApp:assembleDebug`。
+- **路由声明**：使用 `@Router` 声明页面，KSP 生成路由信息、实例工厂和页面注册代码。
+- **跳转方式**：支持页面实例和 URL，使用 `@RouterParam` 注入构造参数及属性。
+- **结果回传**：区分成功、无结果、取消和类型不匹配；Compose 使用 Consumer 接收结果。
+- **返回控制**：关闭当前页、回退到指定页、移除匹配页、清栈及根页保护。
+- **拦截器**：支持全局、页面声明和 Owner 外置绑定的 Push / Pop 拦截器。
+- **多模块**：按宿主实际编译依赖聚合模块索引，处理传递依赖和菱形依赖去重。
+- **跨平台**：共享路由 API，目标包括 Android、JVM Desktop、iOS、Kotlin/JS 和 Wasm。
 
-## 5.1.0 更新（2026-09-07）
+## 目录
 
-- 模块注册改为按实际编译依赖读取版本化索引，支持本地模块、Maven 发布模块和多平台静态注册；新增业务模块插件 `io.github.limuyang2.router.module`。
-- `moduleId` 默认从 `group:name` 推导，支持手动覆盖和冲突诊断，生成类名不再随源码路径变化。
-- 索引准备和宿主聚合任务支持 Build Cache；生成目录接入 IDE，避免 `RouterAggregatedRegistry` 报红，并保持与 KSP 输入隔离。
-- KSP 聚合输出只关联实际参与路由生成的源码，减少无关文件的连带重处理；保留正确的聚合失效和多轮生成行为。
-- 异步 Pop 绑定具体页面实例，等待期间进入新页面不会误删；批量移除保留根页面，拦截器通过 `PopRequest` 查看目标、通过 `redirect` 修改请求。
-
-从 5.0.x 升级时，请同时升级 runtime、processor 和 Gradle 插件至 5.1.0，重新构建/发布路由模块，并按下文「Pop API 迁移」调整自定义拦截器。旧生成文件需先清理。
-
-## 重点变化
-
-结果回传需要显式区分两类消费方式：
-
-- `pushForResult`
-  关心完整结果语义，最终拿到 `RouteResult<R>`。
-- `pushForResult` + `RouteResultConsumerToken`
-  Compose 推荐写法。token 由 `rememberRouteResult` 创建；它不直接保存业务 lambda，而是保存稳定 slot，结果派发时使用当前 Composition 注册的最新 consumer。
-
-推荐这样理解：
-
-- 你在 Compose 页面里接收结果：优先用 `pushForResult(..., resultTo = ...)`
-- 你在非 Compose 场景里接收结果：用 `pushForResult(...)`
-- 如果只关心业务值：对 `RouteResult<R>` 调用 `get()`
-
-核心差异不是 API 形式，而是结果 consumer 的持有方式：
-
-- callback 方式会把回调直接挂在路由请求上
-- token 方式只记录 slotId，真正消费结果时取当前 entry 上已注册的最新 consumer
-
-因此：
-
-- 顶层 `push(url/destination)` 只表示纯跳转
-- 一切“跳转并等待结果”的业务入口，使用 `pushForResult`
-- DSL 中的 `onRouteResult / resultTo` 属于低层入口，只有需要组合多个 push 配置项时再使用
-
----
+- [安装](#安装)
+- [快速开始](#快速开始)
+- [路由与参数](#路由与参数)
+- [导航与返回](#导航与返回)
+- [结果回传](#结果回传)
+- [拦截器](#拦截器)
+- [多模块注册](#多模块注册)
+- [运行 Demo](#运行-demo)
+- [常见问题](#常见问题)
+- [许可证](#许可证)
 
 ## 安装
 
-项目包名前缀统一为 `io.github.limuyang2`。从旧包名迁移时，需要同步更新源码 import、Maven 坐标、Gradle 插件 ID 和自定义 `registryPackage`，清理生成文件后重新构建并发布所有路由模块。Android 示例的 applicationId 和 iOS 示例的 Bundle ID 也使用新前缀。
+<!-- 尚未发布。发布后补充依赖坐标、插件版本和安装方式。 -->
 
-当前版本 `5.1.0`，包含三个组件：
+## 快速开始
 
-- runtime：`io.github.limuyang2:router:5.1.0`
-- KSP processor：`io.github.limuyang2:router-ksp:5.1.0`
-- Gradle 插件：`io.github.limuyang2.router`（宿主）与 `io.github.limuyang2.router.module`（业务模块），版本均为 `5.1.0`。
+完成宿主的代码生成与模块聚合配置后，可按以下步骤接入。仓库内的完整配置可参考 [composeApp](composeApp/build.gradle.kts) 和 [业务模块示例](demo-feature-product/build.gradle.kts)。
 
-使用版本目录时，可在 `gradle/libs.versions.toml` 中统一配置：
+### 1. 声明页面
 
-```toml
-[versions]
-router = "5.1.0"
-
-[libraries]
-router-runtime = { module = "io.github.limuyang2:router", version.ref = "router" }
-router-ksp = { module = "io.github.limuyang2:router-ksp", version.ref = "router" }
-
-[plugins]
-router-host = { id = "io.github.limuyang2.router", version.ref = "router" }
-router-module = { id = "io.github.limuyang2.router.module", version.ref = "router" }
-```
-
-运行时依赖使用 `implementation(libs.router.runtime)`；KMP 放在 `commonMain.dependencies`。本版验证的工具链为 Gradle 9.6.1、Kotlin 2.4.0、AGP 9.2.1、KSP 2.3.10，目标包括 Android、JVM、iosArm64 和 iosSimulatorArm64。
-
-KSP 在 KMP 下需要按 target 配置（`kspAndroid` / `kspJvm` / `kspIosArm64` / `kspIosSimulatorArm64` / `kspJs` / `kspWasmJs`），完整接入方式见下文「模块注册（聚合插件）」。
-
----
-
-## 初始化
-
-在使用 `Navigator` 前先初始化，并注册路由模块：
+路由类实现 `IRouterEntryProvider`，在 `UI()` 中提供界面。
 
 ```kotlin
-initRouter {
-    defaultScheme("qmstu")
-    isLog(true)
-}
-RouterAggregatedRegistry.registerAll()
-```
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import io.github.limuyang2.router.IRouterEntryProvider
+import io.github.limuyang2.router.LocalNavigator
+import io.github.limuyang2.router.anno.Router
+import io.github.limuyang2.router.anno.RouterParam
 
-> `RouterAggregatedRegistry` 由聚合插件生成，Android / Desktop / iOS / Web 各端用法一致，详见下文「模块注册（聚合插件）」。顺序必须是先 `initRouter {}`，再 `registerAll()`。
-
-配置项目前只有两个：
-
-- `defaultScheme`
-  当 `@Router` 不写 `scheme` 时使用它，默认值是 `"route"`
-- `isLog`
-  是否打开库内日志
-
----
-
-## KSP 配置
-
-如果大多数页面都在同一个 host 下，建议给 KSP 配默认 host：
-
-```kotlin
-ksp {
-    arg("RouterHost", "home")
-}
-```
-
-这样 `@Router(host = "")` 时会回落到这里的值。
-
----
-
-## 声明路由
-
-最基础的路由声明：
-
-```kotlin
-@Router(
-    scheme = "qmstu",
-    host = "home",
-    path = "/main",
-    desc = "首页"
-)
+@Router(scheme = "demo", host = "app", path = "/home")
 class HomeRoute : IRouterEntryProvider {
     @Composable
     override fun UI() {
-        HomePage()
+        val navigator = LocalNavigator.current
+        Button(onClick = { navigator.push(UserRoute(42L)) }) {
+            Text("打开用户页面")
+        }
     }
 }
-```
 
-URL 形态是：
-
-```text
-scheme://host/path
-```
-
-例如：
-
-```text
-qmstu://home/main
-```
-
-如果你只需要对象跳转，也可以把路由类当普通类型使用；但要注意：
-
-- `@Router(path = "")` 不会生成 URL 路由映射
-- 这类页面仍然可以 `navigator.push(RouteInstance())`
-- 但不能依赖 `findClassByUrl` 或 URL 方式命中它
-
----
-
-## 参数注入
-
-`@RouterParam` 可以标在构造参数上，也可以标在属性上。
-
-```kotlin
-@Router(host = "user", path = "/detail")
-class UserDetailRoute(
-    @param:RouterParam("uid") val uid: Long = 0L
+@Router(scheme = "demo", host = "app", path = "/user")
+class UserRoute(
+    @param:RouterParam("id") val id: Long,
 ) : IRouterEntryProvider {
-
     @Composable
     override fun UI() {
-        UserDetailPage(uid)
+        val navigator = LocalNavigator.current
+        Column {
+            Text("用户 ID：$id")
+            Button(onClick = { navigator.pop() }) {
+                Text("返回")
+            }
+        }
     }
 }
 ```
 
-URL 跳转时：
+对应的路由 URL 为 `demo://app/home` 和 `demo://app/user?id=42`。
 
-```text
-qmstu://user/detail?uid=10086
-```
+### 2. 初始化并注册模块
 
-对应参数会自动注入。
-
-属性注入示例：
+在创建和使用 `Navigator` 前初始化，再调用宿主生成的聚合入口：
 
 ```kotlin
-@Router(scheme = "xxxx", host = "test", path = "result")
-data class ResultRoute(
-    @param:RouterParam("sx") val title: String?
-) : IRouterEntryProvider {
+import io.github.limuyang2.router.initRouter
+import io.github.limuyang2.router.generated.RouterAggregatedRegistry
 
-    @RouterParam("f")
-    var progress: Float = 0f
-
-    @Composable
-    override fun UI() {
-        ResultPage()
+fun initializeNavigation() {
+    initRouter {
+        defaultScheme("demo")
+        isLog(false)
     }
+    RouterAggregatedRegistry.registerAll()
 }
 ```
 
----
+示例使用聚合插件的默认包名。修改 `router.registryPackage` 后，应导入对应包中的生成类。
 
-## Navigation3 接入
+在平台启动入口调用 `initializeNavigation()`，完成后再显示下文的 `App()`。
 
-`Navigator` 提供：
+`initRouter` 保留首次初始化的配置。未显式声明 scheme 的路由使用 `defaultScheme`，其默认值为 `"route"`。模块注册必须在初始化之后进行。
 
-- `backStack`
-- `backStackEvents`
-- `pageProviderInstaller`
+KMP 的聚合入口按 target 生成，`commonMain` 不能直接引用平台生成类。可以在各平台入口初始化，也可以通过 `expect/actual` 分发；仓库示例见 [DemoRuntime.kt](composeApp/src/commonMain/kotlin/io/github/limuyang2/router/demo/DemoRuntime.kt)。
 
-典型接法如下：
+### 3. 接入 NavDisplay
 
 ```kotlin
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
+import io.github.limuyang2.router.LocalNavigator
+import io.github.limuyang2.router.Navigator
+import io.github.limuyang2.router.rememberRouteResultNavEntryDecorator
+
 @Composable
 fun App() {
-    val navigator = remember { Navigator("qmstu://home/main") }
-    val pageEntryProvider = remember { navigator.pageProviderInstaller }
+    val navigator = remember { Navigator(HomeRoute()) }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
         NavDisplay(
             backStack = navigator.backStack,
-            onBack = navigator::pop,
-            entryProvider = entryProvider {
-                pageEntryProvider.forEach { it(this) }
-            }
+            onBack = { navigator.pop() },
+            entryDecorators = listOf(
+                rememberRouteResultNavEntryDecorator(),
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
+            entryProvider = entryProvider<Any> {
+                navigator.pageProviderInstaller.forEach { install ->
+                    install(this)
+                }
+            },
         )
     }
 }
 ```
 
-如果你在页面里要使用 `rememberRouteValue` / `rememberRouteResult`，要确保当前 Composition 能拿到 `LocalNavigator`。
+`LocalNavigator` 提供当前导航器。`rememberRouteResultNavEntryDecorator()` 为页面提供结果接收上下文；使用 `rememberRouteResult` 时必须安装它。其余 decorators 分别处理可保存的页面状态与页面级 ViewModel。
 
----
+完整宿主示例见 [RouterApp.kt](composeApp/src/commonMain/kotlin/io/github/limuyang2/router/demo/RouterApp.kt)。
 
-## 跳转 API
+## 路由与参数
 
-### 基础跳转
+### URL 与实例
+
+URL 使用 `scheme://host/path` 形式，查询参数作为页面参数传入：
 
 ```kotlin
-navigator.push(HomeRoute())
-navigator.push("qmstu://home/main")
+// 在点击事件或业务方法中发起跳转。
+navigator.push(UserRoute(id = 42L))
+navigator.push("demo://app/user?id=42")
 ```
 
-同一个页面对象实例不能在当前返回栈中重复出现（使用 `===` 判断），离栈后可以再次入栈。
-此规则不受 `preventDuplicates`、`greenChannel`、`isCleanStack` 或 `isPopCurrent` 影响；检查的是拦截器处理后的最终目标，也适用于 URL 解析得到的单例对象。
-重复实例跳转会调用 `routeFailureCallback` 和 `routeCompletedCallback`，不会修改返回栈。不同实例即使参数、`equals` 或 `contentKey` 相同，仍允许入栈；相同 `contentKey` 的状态共享语义保持不变。
+`@Router(path = "")` 的页面只生成实例注册，不生成 URL 映射。需要通过 URL 打开的页面应声明非空 path。
 
-### DSL 跳转
+`@RouterParam` 可以标记构造参数，也可以标记可变属性：
+
+```kotlin
+@Router(scheme = "demo", host = "app", path = "/article")
+class ArticleRoute(
+    @param:RouterParam("id") val id: Long,
+) : IRouterEntryProvider {
+    @RouterParam("source")
+    var source: String = ""
+
+    @Composable
+    override fun UI() {
+        Text("文章：$id，来源：$source")
+    }
+}
+```
+
+例如 `demo://app/article?id=7&source=home` 会注入 `id` 和 `source`。手动提供的同名 extras 优先于 URL 查询参数。
+
+### 页面身份
+
+同一个对象不能重复存在于返回栈中，判断依据为 `===`。这一约束始终生效，包括开启 `greenChannel` 或关闭 `preventDuplicates` 时。对象离栈后可以再次入栈。
+
+不同对象即使参数相同也可以入栈。`contentKey()` 标识页面内容作用域；相同 key 会共享该作用域的状态、ViewModel 和结果归属，需要独立状态时应提供不同且稳定的 key。
+
+## 导航与返回
+
+### 跳转配置
 
 ```kotlin
 navigator.push {
-    destination = HomeRoute() // 优先级高于 url
-    // url = "qmstu://home/main"
-
-    preventDuplicates = false
+    destination = UserRoute(42L)
+    preventDuplicates = true
     isCleanStack = false
     isPopCurrent = false
     greenChannel = false
-
-    routeBeforeCallback = { }
-    routeSuccessCallback = { }
-    routeFailureCallback = { }
-    routeCompletedCallback = { }
 }
 ```
 
-几个常用开关：
+| 配置 | 含义 |
+| --- | --- |
+| `destination` | 页面实例；非空时优先于 `url`。 |
+| `url` | 用于解析路由和查询参数的 URL。 |
+| `extras` | 额外参数，同名项覆盖 URL 参数。 |
+| `preventDuplicates` | 阻止与栈顶页面类型相同的重复跳转。 |
+| `isCleanStack` | 成功跳转后移除旧页面，仅保留新页面。 |
+| `isPopCurrent` | 成功打开新页面后关闭旧 current。 |
+| `greenChannel` | 跳过 Push 拦截器，仍执行目标解析和实例唯一性检查。 |
 
-- `preventDuplicates`
-  如果目标页面类型已经在栈顶，阻止重复入栈
-- `isCleanStack`
-  跳转成功后清空旧栈，只保留新页面
-- `isPopCurrent`
-  新页面入栈后移除当前页。它不是 replace，不会继承旧页的结果关系；因此不能与 `onRouteResult / resultTo` 同时使用
-- `greenChannel`
-  跳过 Push 拦截器链，直接解析并执行跳转
+`isPopCurrent` 是关闭旧页面的操作，新页面不会继承旧页面的结果关系。旧页面被上游等待结果时，该请求会结算为 `Cancelled`；`isPopCurrent = true` 不能同时绑定 `resultTo` 或 `onRouteResult`。
 
-### `isPopCurrent` 的语义
+### 返回与移除
 
-请把 `isPopCurrent` 理解成：
+| 调用 | 行为 |
+| --- | --- |
+| `navigator.pop()` | 关闭绑定的当前页，不携带业务结果。 |
+| `navigator.pop(value)` | 关闭绑定的当前页并返回业务值。 |
+| `navigator.pop { to<HomeRoute>() }` | 保留最近的 HomeRoute，移除其上方绑定的页面。 |
+| `navigator.pop { last(UserRoute::class) }` | 移除最近一个 UserRoute，其上方其他页面保留。 |
+| `navigator.pop { all(UserRoute::class) }` | 移除所有匹配页面；全部命中时保留原根页。 |
 
-- `push` 成功后关闭旧 current
-- 它是页面生命周期操作，不是 replace
-- 新页面不会自动接管旧页面的 request、pending result 或结果消费槽位
+`to` 支持类型、URL 和页面实例；`last` 支持类型、类型集合、URL 和页面实例；`all` 支持类型、类型集合和 URL。按实例选择使用 `===`，URL 选择按路由类型匹配，查询参数不参与页面选择。
 
-因此有两个直接结论：
+`to` 未匹配或目标已经位于栈顶时不执行。仅剩根页时，普通返回不会清空导航栈。
 
-- 如果旧 current 正被上游等待结果，它在被移除时会按 `Cancelled` 结算
-- `isPopCurrent = true` 时，当前页面不能再同时声明 `onRouteResult / resultTo`；库会直接拒绝这次跳转
-- 如果需要 `push C` 后立刻移除当前页 `B`，不要让 `B` 同时等待 `C` 的结果；`C` 后续返回值也不会自动穿透给 `A`
+### 异步返回
 
----
+返回目标在进入拦截器前绑定。拦截器等待期间新增的页面不属于原请求：
+
+```text
+[A, B]     B 发起返回，拦截器等待
+[A, B, C]  等待期间打开 C
+[A, C]     放行后关闭原来绑定的 B
+```
+
+任一待移除实例或定向返回的接收页提前离栈，原请求会失效；同一对象重新入栈不会恢复旧请求。重复返回请求也不会继续删除其他页面。
+
+`backStack` 用于界面观察，栈变更应通过 `Navigator` 发起，以保留目标绑定、根页保护和结果结算规则。
 
 ## 结果回传
 
-### 1. 结果类型声明
+### Compose UI
 
-结果类型由接收端声明：
+**Compose UI 禁止使用 `pushForResult(onResult)`、`onRouteResult(block)` 或带 callback 的 `destination`。应使用 `rememberRouteResult` 创建 Consumer，并通过 `resultTo` 绑定。**
 
-- Compose token 入口通过 `rememberRouteResult<R>` 声明。
-- callback / DSL 入口通过 `pushForResult<R>` / `onRouteResult<R>` 声明。
-
-这个类型会写入当前 request，用于 `pop(result)` 时做运行时校验。页面类本身不需要额外实现结果类型接口。
-
-### 2. Compose 场景
-
-Compose 页面推荐使用 `rememberRouteResult` 创建 `RouteResultConsumerToken`，再通过 `pushForResult(..., resultTo = token)` 绑定结果。
-
-值语义：
+以下示例在点击事件中打开编辑页，返回后显示完整结果：
 
 ```kotlin
-val token = rememberRouteResult<HomeResult> { result ->
-    val value: HomeResult? = result.get()
-}
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import io.github.limuyang2.router.IRouterEntryProvider
+import io.github.limuyang2.router.LocalNavigator
+import io.github.limuyang2.router.RouteResult
+import io.github.limuyang2.router.anno.Router
+import io.github.limuyang2.router.rememberRouteResult
 
-navigator.pushForResult(HomeRoute(), resultTo = token)
-```
+data class UserResult(val saved: Boolean)
 
-完整结果语义：
+@Composable
+fun ResultExample() {
+    val navigator = LocalNavigator.current
+    var feedback by rememberSaveable { mutableStateOf("尚未收到结果") }
+    val resultTo = rememberRouteResult<UserResult> { result ->
+        feedback = when (result) {
+            is RouteResult.Success -> "已保存：${result.value?.saved}"
+            RouteResult.NoResult -> "没有返回业务值"
+            RouteResult.Cancelled -> "结果请求已取消"
+            is RouteResult.TypeMismatch -> "返回类型不匹配"
+        }
+    }
 
-```kotlin
-val token = rememberRouteResult<HomeResult> { result ->
-    when (result) {
-        is RouteResult.Success -> Unit
-        is RouteResult.NoResult -> Unit
-        is RouteResult.Cancelled -> Unit
-        is RouteResult.TypeMismatch -> Unit
+    Column {
+        Text(feedback)
+        Button(
+            onClick = {
+                navigator.pushForResult(EditUserRoute(), resultTo = resultTo)
+            },
+        ) {
+            Text("编辑用户")
+        }
     }
 }
 
-navigator.pushForResult(HomeRoute(), resultTo = token)
-```
-
-- `RouteResult.get()` 只保留业务值语义，`NoResult / Cancelled / TypeMismatch` 会返回 `null`。
-- `rememberRouteResult` 保留完整 `RouteResult<R>` 语义，适合需要区分成功、无结果、取消、类型不匹配的场景；只关心业务值时直接调用 `result.get()`。
-- token 只保存稳定 slot，不保存旧 Composition 的业务 lambda；页面回到前台时，结果会派发给当前 entry 上最新注册的 consumer。
-- 使用 `rememberRouteResult` 时，当前 Composition 必须能拿到 `LocalNavigator` 和当前 route entry 上下文。
-
-### 3. 非 Compose 场景
-
-非 Compose 场景使用 callback 形式接收完整 `RouteResult`：
-
-```kotlin
-navigator.pushForResult<HomeResult>(HomeRoute()) { result ->
-    // result: RouteResult<HomeResult>
+@Router(scheme = "demo", host = "app", path = "/edit-user")
+class EditUserRoute : IRouterEntryProvider {
+    @Composable
+    override fun UI() {
+        val navigator = LocalNavigator.current
+        Button(onClick = { navigator.pop(UserResult(saved = true)) }) {
+            Text("保存并返回")
+        }
+    }
 }
 ```
 
-- callback 接收 `RouteResult<R>`，由调用方自行决定是否只处理 `Success`。
-- callback 方式会挂在当前 request 上，不具备 Compose token 的 slot 重新绑定能力。
-
-### 4. DSL 结果入口
-
-`Navigator.PushBuilder` 提供两类结果入口：
+同一个 Consumer 也可用于 URL 跳转，例如在点击事件中调用：
 
 ```kotlin
-navigator.push {
-    destination = HomeRoute()
-    onRouteResult<HomeResult> { result -> }
-}
+navigator.pushForResult("demo://app/edit-user", resultTo = resultTo)
+```
 
-navigator.push {
-    destination = HomeRoute()
-    resultTo(token)
+Consumer 保存稳定的接收槽位，普通重组时使用最新闭包，页面离开 Composition 后重新进入时绑定新的接收器。同一 entry 内，key 和结果类型共同确定槽位。
+
+### 结果状态
+
+| 返回或移除行为 | 接收结果 |
+| --- | --- |
+| `pop(value)` | `RouteResult.Success(value)` |
+| `pop(result = null)` | `RouteResult.Success(null)` |
+| `pop()` | `RouteResult.NoResult` |
+| 等待中的请求因目标页被连带移除而取消 | `RouteResult.Cancelled` |
+| 实际返回值与接收端声明类型不兼容 | `RouteResult.TypeMismatch` |
+
+`result.get()` 仅提取成功结果中的业务值，其他状态返回 null；它无法区分 `Success(null)` 与无结果、取消或类型不匹配。
+
+结果默认只回传给打开当前页并等待结果的直接调用方。`A → B → C` 中，C 的结果不会自动穿透给 A；B 如需转发，应接收 C 的结果后再显式返回给 A。接收页在后台时，结果等待它回到前台后消费。
+
+### 定向返回
+
+目标页先注册指定 key 的 Consumer：
+
+```kotlin
+// HomeRoute 的 UI 内。
+val refreshResult = rememberRouteResult<UserResult>(key = "refresh") { result ->
+    // 使用 result 刷新首页状态。
 }
 ```
 
-- `onRouteResult` / 带 callback 的 `destination`：完整结果语义，接收 `RouteResult<R>`。
-- `resultTo` / 带 token 的 `destination`：Compose token 语义，结果投递给当前 entry 上匹配 slot 的 consumer。
-
-业务代码优先使用 `pushForResult` 这类明确入口；只有需要同时配置 URL、extras、拦截器绿色通道、生命周期回调等低层选项时，再使用 DSL 结果入口。
-
-### 5. 当前页返回结果
-
-当前栈顶关闭时，结果会结算给创建该页面的直接 caller。语义如下：
+其他页面可直接将结果投递给 HomeRoute，并关闭解析时位于它上方的页面：
 
 ```kotlin
-navigator.pop()
-navigator.pop(HomeResult(selectedTab = 2))
-
 navigator.pop {
-    top(HomeResult(selectedTab = 2))
-}
-```
-
-- `pop()`
-  对应 `RouteResult.NoResult`
-- `pop(result = null)` 或 `top(null)`
-  对应 `RouteResult.Success(null)`
-- `pop(result = value)` 或 `top(value)`
-  对应 `RouteResult.Success(value)`
-
-如果一个等待结果的页面在结果返回前就被移除了，未完成请求会收到 `RouteResult.Cancelled`。
-
-如果实际返回值类型和接收端声明的 `R` 不兼容，会收到 `RouteResult.TypeMismatch`。
-
-### 6. 回退到指定页并直接投递结果
-
-`pop { to(..., result, key) }` 表示把结果直接投递给目标页，并移除目标页上方的页面。它类似 Navigation Compose 中的 `getBackStackEntry(A).savedStateHandle.set(...) + popBackStack(A, false)`，但结果投递规则以当前 Router 的 consumer slot 为准。
-
-```kotlin
-val token = rememberRouteResult<HomeResult>(key = "refresh") { result ->
-    // result: RouteResult<HomeResult>
-}
-
-navigator.pop {
-    to<HomeRoute, HomeResult>(
-        result = HomeResult(selectedTab = 2),
+    to<HomeRoute, UserResult>(
+        result = UserResult(saved = true),
         key = "refresh",
     )
 }
 ```
 
-- result 直接投递给目标页当前 entry 上同 key、同结果类型的 consumer；
-- 目标页的当前 entry 必须曾通过 `rememberRouteResult(key = ...)` 注册匹配 consumer；
-- 页面暂时离开 Composition 时仅解绑回调，结果会排队，等它回到前台并绑定最新 consumer 后消费；槽位声明随 entry 出栈清理；
-- 如果该 entry 从未注册匹配 key/type 的 consumer，result 会被直接丢弃，不会缓存；
-- 中间被移除页面的 pending request 不会收到 success，会按 `Cancelled` 或清理处理。
-- 直接投递必须携带 `key`，避免多个结果槽位无法区分。
+目标 entry 必须曾注册匹配 key 和结果类型的 Consumer。暂时离开 Composition 的接收器会在返回后重新绑定；未注册过匹配槽位的直接结果会被丢弃。中间页面不会因此收到成功结果。
 
-### 7. 结果链路规则
+### 非 Compose 业务代码
 
-结果回传默认遵循“严格一跳返回”：
-
-- `push(A -> B)` 时，建立的是 “A 等 B” 的 request
-- `push(B -> C)` 时，建立的是 “B 等 C” 的 request
-- `C` 默认只会把结果回给直接 caller `B`
-- 框架不会自动把 `C` 的结果穿透给 `A`
-
-这意味着：
-
-- 如果 `A` 最终想拿到 `C` 的结果，`B` 必须保持存活到收到 `C` 的结果，再由 `B` 显式回传给 `A`
-- 如果 `B` 在等待 `C` 结果期间被移除，那么 `A -> B` 这条 request 会结束为 `Cancelled`
-- caller 不会在后台立刻消费结果；只有当 caller 重新成为前台页时，pending result 才会真正派发给 callback 或 consumer
-- `pop { to(A, result, key) }` 是显式例外：它不通过中间页面 request 链转发，而是直接投递给目标页 A。
-
----
-
-## Pop API
-
-Pop 分为关闭当前页、回退到指定页、移除指定页三类语义：
+普通 callback 保存发起请求时的闭包，适用于非 Compose 业务代码：
 
 ```kotlin
-navigator.pop {
-    top()                  // 关闭当前栈顶
-    // to<HomeRoute>()      // 回退到指定页
-    // last(HomeRoute::class) // 移除最近一个匹配页
-    // all(HomeRoute::class)  // 移除所有匹配页
+fun openEditor(
+    navigator: Navigator,
+    onResult: (RouteResult<UserResult>) -> Unit,
+) {
+    navigator.pushForResult(EditUserRoute(), onResult = onResult)
 }
 ```
 
-- `top`
-  绑定拦截前的栈顶实例，放行后关闭它。无参数时返回 `NoResult`；带参数时返回 `Success(value)`，即使 value 为 `null` 也表示明确成功返回。
-- `to`
-  回退到最近一个匹配页面，它上面的页面都会被移除。带结果时必须使用带 key 的重载，并只投递给目标页匹配 key/type 的当前 consumer；中间页不会自动 success。
-- `last`
-  移除最近一个匹配页面，但不动它上面的页面。只有被移除页在请求解析时是栈顶，才会按 request 链结算 `NoResult`；否则属于普通移除。按实例选择使用 `===`，不使用 `equals`。
-- `all`
-  移除所有匹配页面；如果会清空整个返回栈，则保留操作前的根页面（栈底页面）。只剩根页面时不执行移除。
-- `greenChannel`
-  跳过 Pop 拦截器链，直接执行已解析的页面操作，仍保留根页面保护。
-
-`to` 和 `last/all` 的结果语义不同：`to(..., result, key)` 是直接投递给目标页；`last/all` 不携带业务 result，移除过程中被连带清理的 pending request 会按 `Cancelled` 或清理处理。
-
-### 异步 Pop 的目标绑定
-
-所有 Pop 操作都会在进入拦截器前匹配页面，并绑定到这些实例本次在栈中的生命周期。等待期间新增的页面不加入原操作：
-
-```text
-[A,B]   B 发起返回，拦截器等待
-[A,B,C] 等待期间进入 C
-[A,C]   拦截器放行，关闭原来的 B
-```
-
-- B 的主动返回仍向原 caller A 结算 `Success(value)` / `NoResult`，不会因为 B 不再是栈顶而变成 `Cancelled`。A 被 C 覆盖时，结果等 A 回到前台再消费。
-- 任一待移除页或 `to(...)` 的接收页提前离栈，整次旧操作失效；同一实例重新入栈不会恢复旧操作。
-- 重复发起关闭 B 的请求，至多有一次能移除 B；剩余请求不会继续删除其它页面。
-- `to/all/last` 同样只处理解析时绑定的页面。如果等待期间新增 D，D 会保留；`to(..., result, key)` 仍向原目标页投递，原目标页在后台时延迟消费。目标 entry 从未注册匹配 consumer 时仍丢弃直接投递的结果。
-- 保证适用于通过 Navigator 发起的栈变更。`backStack` 供 NavDisplay 观察，请使用 Navigator 修改它；直接修改列表会绕过实例限制、请求失效与结果结算逻辑。
-
----
+它不会随页面重组或重建替换闭包，调用方应保证捕获对象在结果派发时仍有效。`@DisallowComposableCalls` 不能阻止捕获外部 Compose 状态，因此不能替代上述 Compose UI 使用约定。
 
 ## 拦截器
 
-### 页面级 Push / Pop 拦截器
+### Push：改写参数或目标
 
 ```kotlin
-class LoginPushInterceptor : IRouterPushInterceptor {
-    override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
-        val request = chain.request()
+import io.github.limuyang2.router.IRouterPushInterceptor
+import io.github.limuyang2.router.PushResponse
+
+class SourcePushInterceptor : IRouterPushInterceptor {
+    override suspend fun intercept(
+        chain: IRouterPushInterceptor.Chain,
+    ): PushResponse {
+        val request = chain.request().newBuilder()
+            .setExtra("source", "home")
+            .build()
         return chain.proceed(request)
     }
 }
+```
+
+页面可通过 `@Router(pushInterceptors = [...])` 绑定；全局拦截器通过 `@RouterGlobalPushInterceptor` 声明，Owner 外置绑定通过 `@RouterOwnerPushInterceptor` 声明。Pop 提供对应的注解。优先级数值越小越先执行，同一次操作先处理全局拦截器，再处理页面拦截器。
+
+Push 改写目标类型后会重新执行适用的拦截器链。调用 `chain.interrupt()` 可以中断跳转。
+
+### Pop：检查已绑定的页面
+
+```kotlin
+import io.github.limuyang2.router.IRouterPopInterceptor
+import io.github.limuyang2.router.PopResponse
 
 class AuditPopInterceptor : IRouterPopInterceptor {
-    override suspend fun intercept(chain: IRouterPopInterceptor.Chain): PopResponse {
+    override suspend fun intercept(
+        chain: IRouterPopInterceptor.Chain,
+    ): PopResponse {
         val request = chain.request()
-        // request.operation：CURRENT / REMOVE / BACK_TO
-        // request.removeTargets：已匹配的页面，按栈顶到栈底排列
-        // request.backToPage：BACK_TO 要保留的接收页，其它操作为 null
-        return chain.proceed()
-    }
-}
-
-@Router(
-    host = "home",
-    path = "/main",
-    pushInterceptors = [LoginPushInterceptor::class],
-    pushInterceptorPriorities = [0],
-    popInterceptors = [AuditPopInterceptor::class],
-    popInterceptorPriorities = [0]
-)
-class HomeRoute : IRouterEntryProvider
-```
-
-### 全局拦截器
-
-```kotlin
-@RouterGlobalPushInterceptor(priority = 0)
-class GlobalPushInterceptor : IRouterPushInterceptor {
-    override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
-        return chain.proceed(chain.request())
-    }
-}
-
-@RouterGlobalPopInterceptor(priority = 0)
-class GlobalPopInterceptor : IRouterPopInterceptor {
-    override suspend fun intercept(chain: IRouterPopInterceptor.Chain): PopResponse {
+        // 根据 request.removeTargets 检查实际将被关闭的页面。
         return chain.proceed()
     }
 }
 ```
 
-### 拦截器里改写请求
-
-Push 拦截器可以基于 `request.newBuilder()` 改写目标、URL 或 extras：
-
-```kotlin
-class DetailPushInterceptor : IRouterPushInterceptor {
-    override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
-        val newRequest = chain.request().newBuilder()
-            .setExtra("source", 1)
-            .build()
-
-        return chain.proceed(newRequest)
-    }
-}
-```
-
-也可以中断：
-
-```kotlin
-return chain.interrupt()
-```
-
-### Pop 拦截器修改目标或返回值
-
-PopRequest 是 Core 解析后的请求，拦截器通过 `chain.request()` 获取。各属性含义如下：
-
-| 属性 | 含义 |
+| PopRequest 属性 | 含义 |
 | --- | --- |
-| `operation` | 操作分类：`CURRENT` 对应普通返回，`REMOVE` 对应 `last/all`，`BACK_TO` 对应 `to`。 |
-| `removeTargets` | 本次准备关闭的页面实例，按解析时从栈顶到栈底排列，等待期间新增的页面不加入。 |
-| `backToPage` | `to(...)` 要保留并回退到的页面；其它操作为 null。它不是每次操作后的栈顶，也不是普通 `pop(result)` 的结果接收页。 |
-| `hasResult` | 是否明确提供了业务返回值。没有提供值为 false，明确返回 null 也为 true。它不表示操作已经成功。 |
-| `result` | 原始业务返回值，例如商品 ID、编辑后的数据，不是 `RouteResult` 状态对象。为 null 时结合 `hasResult` 判断。 |
+| `operation` | `CURRENT`、`REMOVE` 或 `BACK_TO`。 |
+| `removeTargets` | 已绑定的待移除实例，按解析时栈顶到栈底排列。 |
+| `backToPage` | `BACK_TO` 保留的目标页，其他操作为 null。 |
+| `hasResult` | 是否明确提供了业务值，显式 null 也为 true。 |
+| `result` | 原始业务值；需要结合 `hasResult` 判断 null。 |
 
-例如栈为 `[A, B, C]`，下面每行分别表示独立发起一次请求：
-
-| 调用 | `removeTargets` | `backToPage` | `hasResult` | `result` |
-| --- | --- | --- | --- | --- |
-| `pop()` | `[C]` | null | false | null |
-| `pop(42)` | `[C]` | null | true | 42 |
-| `pop(result = null)` | `[C]` | null | true | null |
-| `pop { to(A) }` | `[C, B]` | A | false | null |
-| `pop { to(A, 42, "refresh") }` | `[C, B]` | A | true | 42 |
-| `pop { last(B) }` | `[B]` | null | false | null |
-
-普通 `pop(42)` 的值交给最初打开 C 并等待它返回结果的页面；`to(A, 42, "refresh")` 的值直接交给 A 上匹配 key 和结果类型的 consumer。结果在页面移除后结算，接收页回到前台再消费。拦截器读取 `result` 不会触发投递；普通返回没有对应的等待请求，或直接投递没有匹配 consumer 时，不会送达业务值。
-
-改变页面选择条件使用 `redirect`，DSL 与 `navigator.pop { ... }` 共用，但没有跳过拦截器的 `greenChannel` 开关：
+改变页面选择使用 `redirect`：
 
 ```kotlin
 return chain.redirect {
-    last(otherPage)
-    // to<HomeRoute>()
-    // all(DetailRoute::class)
+    to<HomeRoute>()
 }
 ```
 
-条件改变后，Core 根据当前栈重新匹配页面，并重新执行全局及新目标页的拦截器。全局拦截器可能执行多次，应根据当前请求判断是否还需要重定向；超过 16 次重定向会中止操作。新条件没有匹配页面时不执行移除。
-
-选择条件相同则继续当前链，沿用原先绑定的实例，不会因为当前栈顶改变而重新选页。例如等待期间 `redirect { top() }` 仍关闭原先绑定的 B；如果明确要改为删除 C，使用 `redirect { last(c) }`。
-
-仅修改返回值可以保留原目标：
+只修改返回值时保留原绑定目标：
 
 ```kotlin
 return chain.proceed(chain.request().withResult(newValue))
 ```
 
-`withResult(null)` 表示明确返回 null。`CURRENT` 支持修改结果；`BACK_TO` 必须原先已指定 key/type；`REMOVE` 不支持业务返回值。每个拦截器只能调用一次 `proceed` 或 `redirect`，或直接返回 `chain.interrupt()`。
+`CURRENT` 支持改写结果；`BACK_TO` 需要原请求已配置结果 key 和类型；`REMOVE` 不支持业务结果。每个 Pop 拦截器阶段最多调用一次 `proceed` 或 `redirect`，也可以通过 `chain.interrupt()` 中断。选择条件改变时重新解析目标；相同条件保留原绑定实例。
 
-### Pop API 迁移
+接口和更多约束见 [运行库 API 注释](lib_router/src/commonMain/kotlin/io/github/limuyang2/router)。
 
-`PopType`、`PopResult` 已收为内部类型，`PopRequest.newBuilder().popType(...)` 和直接构造 `PopResponse(...)` 不再开放。已有自定义 Pop 拦截器需要迁移并重新编译：
+## 多模块注册
 
-- 读取 `request.popType` 改为读取操作分类及已匹配的页面。
-- 修改 `popType` 改为 `chain.redirect { ... }`；修改返回值使用 `request.withResult(...)`。
-- 放行使用 `chain.proceed()`；中断使用 `chain.interrupt()`。
+KRouter 使用显式模块索引和宿主聚合入口完成跨平台注册。
 
-`chain.proceed(chain.request())` 仍可使用，Navigator 原有的 `top/to/last/all` 调用方式保持不变。
-
----
-
-## 模块注册（聚合插件）
-
-路由模块的注册通过 Gradle 聚合插件统一处理，**Android / Desktop / iOS / Web 各端用法完全一致**，不再依赖 JVM `ServiceLoader`，也无需在 iOS 侧手动注册。
-
-> 以下接入方式适用于 5.1.0。升级时需要同时更新 Gradle 插件和 router-ksp；旧版 5.0.x 不支持 module 插件及此索引协议。
-
-整体思路：
-
-1. 声明路由或拦截器的业务模块应用 `io.github.limuyang2.router.module`，配置各平台的 KSP processor；`moduleId` 默认自动推导，也可手动覆盖。
-2. KSP 生成 `ModuleRouterProvider_*`、`ModuleRouterRegistry_*` 和版本化 JSON 索引。模块身份来自 `moduleId`，不包含源码路径、版本号或 target 名。
-3. 宿主应用 `io.github.limuyang2.router`，按实际编译依赖选择本地或 Maven 索引，生成 `RouterAggregatedRegistry`。普通依赖和无关子项目不参与聚合。
-4. 宿主启动时调用一次 `RouterAggregatedRegistry.registerAll()`。宿主插件已包含 module 插件的能力。
-
-### 1. 业务模块：启用 module 插件和 KSP
-
-每个业务模块都要单独配置。以下 target 名应与模块实际声明一致；例如 `jvm("desktop")` 使用 `kspDesktop`：
-
-```kotlin
-plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.router.module)
-}
-
-dependencies {
-    add("kspAndroid", libs.router.ksp)
-    add("kspJvm", libs.router.ksp)
-    add("kspIosArm64", libs.router.ksp)
-    add("kspIosSimulatorArm64", libs.router.ksp)
-    add("kspJs", libs.router.ksp)
-    add("kspWasmJs", libs.router.ksp)
-}
-```
-
-运行时库依赖仍按平台或 commonMain 配置。普通 Android 模块使用 `ksp(libs.router.ksp)`。无路由的普通库无需应用 module 插件；已经应用插件但没有路由的 compilation 会提供空索引。
-
-`moduleId` 是可选配置，默认使用 `project.group:project.name`；`group` 为空时仅使用 `project.name`。例如 `group = "com.example"`、项目名为 `feature-home`，得到 `com.example:feature-home`。读取的是 Gradle 项目的最终配置，不读取单独修改的 Maven publication 坐标。
-
-同一逻辑模块的各平台/变体共用此 ID。不同项目或组合构建可能推导出相同 ID；当它们同时进入宿主聚合时，构建会报错并列出双方来源，提示在其中一个模块手动覆盖，然后重新构建或发布该模块：
-
-```kotlin
-router {
-    // 可选：解决身份冲突，或在项目/group 改名后继续保持原来的模块身份。
-    moduleId.set("com.example:feature-home")
-}
-```
-
-显式值优先于默认推导。ID 需以 ASCII 字母或数字开头，仅包含字母、数字、`_`、`.`、`:`、`-`；无法推导出合法 ID 时也会提示手动覆盖。使用默认值时，在 `settings.gradle(.kts)` 中固定 `rootProject.name`，避免 Gradle 依据 checkout 目录生成不同的项目名或默认 group；修改项目名或 group 会改变默认 ID。
-
-模块 provider/registry 类名的后缀由 `moduleId` 的 SHA-256 前 24 位确定。需要修改模块生成包名时使用 KSP 参数；它与宿主的聚合包名互相独立：
-
-```kotlin
-ksp {
-    arg("router.registryPackage", "com.example.feature_home.generated")
-}
-```
-
-### 2. 宿主模块：应用聚合插件
-
-宿主同样需要 KSP 插件和各 compilation 的 processor 依赖：
-
-```kotlin
-plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.router.host) // io.github.limuyang2.router
-}
-
-router {
-    registryPackage.set("com.example.generated")
-    registryName.set("RouterAggregatedRegistry")
-}
-```
-
-插件按实际 main compilation 或 Android variant 注册任务，支持自定义 JVM target、Android Application/Library（含 flavor）、Android KMP、Kotlin Native、JS 和 Wasm；当前验证的 Native 目标为 iosArm64、iosSimulatorArm64。测试 compilation 暂不支持。本仓库通过 `includeBuild("router-gradle-plugin")` 使用本地插件；外部项目需集中配置配套版本。
-
-宿主必须能在编译期访问需要注册的模块。对被 `implementation` 隐藏或仅通过 `runtimeOnly` 引入的 Router 模块，JVM/Android 构建会报错，提示在宿主显式添加依赖或由中间模块通过 `api` 暴露。Native 按 compilation 的依赖图聚合，不承诺发现图外的隐藏依赖。
-
-发布路由库时，应保留插件提供的索引产物和 Gradle Module Metadata（`.module`），并同时发布对应的平台代码。旧 JAR/AAR/KLIB 没有索引标记，无法自动发现，需要重新发布或显式调用旧模块的注册入口。
-
-首次迁移请用 `./gradlew clean` 清除旧的路径哈希命名产物，再重新构建/发布所有路由模块。不要沿用旧的手工 KSP 目录扫描、跨子项目任务依赖或把聚合目录添加到 KSP 输入。详细设计和验收范围见 [插件架构文档](docs/router-plugin-architecture.md)。
-
-### 3. 初始化
-
-在宿主启动时，先 `initRouter {}`，再调用聚合 registry：
-
-```kotlin
-initRouter {
-    defaultScheme("test")
-    isLog(true)
-}
-RouterAggregatedRegistry.registerAll()
-```
-
-注意顺序：必须先 `initRouter {}`（`registerModuleRouters` 内部会校验初始化状态），再 `registerAll()`。
-
-由于 `RouterAggregatedRegistry` 由聚合插件按 target 生成在平台 source set 中，commonMain 无法直接引用。推荐用 `expect/actual` 在各平台调用，或直接在各平台入口（Android `Application.onCreate` / Desktop `main` / iOS SwiftUI `init` / Web `main`）分别调用。本仓库 demo 在 `initDemoRouter()` 内通过 `expect fun registerAggregatedRouters()` 统一分发，各端入口都只调一次 `initDemoRouter()`。
-
-Kotlin JVM/KMP 宿主的聚合目录通过 KGP 2.4 的 `generatedKotlin` 注册到 IDE。升级插件后请同步 Gradle；首次使用还需构建对应 target 以生成入口，例如 `./gradlew :composeApp:compileKotlinIosArm64`。无需手动标记源码目录，也不要将聚合输出加入 `commonMain` 或 KSP 输入。
-
-### 4. 仓库多模块示例
-
-三个示例模块均使用 module 插件，支持 Android、JVM、iosArm64、iosSimulatorArm64、js 和 wasmJs：
-
-| 模块 | 页面与入口 | moduleId |
+| 模块角色 | 插件 | 职责 |
 | --- | --- | --- |
-| `demo-feature-product` | 商品详情：`test://modules/product?id=42` | 默认 `library-router:demo-feature-product` |
-| `demo-feature-account` | 账户中心：`AccountPage("小明")` 或 `test://modules/account?name=guest` | 默认 `library-router:demo-feature-account` |
-| `demo-feature-shared` | 帮助中心：`HelpPage(...)` 或 `test://modules/help?topic=account` | 手动覆盖为 `io.github.limuyang2:demo-help` |
+| 业务模块 | `io.github.limuyang2.router.module` | 为本模块的路由和拦截器提供索引。 |
+| 宿主模块 | `io.github.limuyang2.router` | 包含业务模块能力，聚合选中依赖的索引并生成注册入口。 |
 
-`composeApp` 只直接依赖商品和账户模块；两者都通过 `api(project(":demo-feature-shared"))` 暴露帮助模块，形成菱形依赖。宿主按实际依赖聚合出四个注册入口（包含自身），帮助模块只注册一次。三个业务模块都不依赖宿主，也不手动调用注册类。
+每个生产 target / compilation 配置对应的 KSP 处理器。宿主生成 `RouterAggregatedRegistry.registerAll()`，启动时显式注册；各平台使用同样的初始化顺序。
 
-Demo 首页新增“打开商品详情”和“打开账户中心”。商品通过实例打开帮助页，账户通过 URL 打开同一个帮助页；点击“问题已解决”后，以 `HelpResult` 向各自的调用页面回传结果。
+- `moduleId` 标识逻辑模块，同一模块的各 target 和变体保持一致。
+- 默认 ID 来自 `project.group:project.name`；group 为空时使用项目名，可通过 `router.moduleId` 覆写。
+- 宿主按实际依赖选择索引，不扫描无关子项目，菱形依赖中的同一模块只注册一次。
+- 生成的静态入口必须编译可见；宿主显式依赖业务模块，或通过中间模块的 `api` 暴露。
+- 模块 ID 冲突、索引损坏或协议不兼容在构建阶段报告。
+- 聚合输出按平台生成，不应加入 `commonMain` 或反向加入 KSP 输入。
 
-验证命令：
+仓库示例为 `composeApp → 商品 / 账户 → 共享帮助`。商品和账户模块都通过 `api` 暴露帮助模块；宿主聚合四个模块入口，帮助模块只注册一次。
 
-```bash
-./gradlew :composeApp:jvmTest
-./gradlew :composeApp:compileAndroidMain :composeApp:compileKotlinIosArm64 :composeApp:compileKotlinIosSimulatorArm64
-./gradlew :androidApp:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.limuyang2.router.demo.PopNavigationDeviceTest
-```
+实现细节见 [模块聚合架构文档](docs/router-plugin-architecture.md)。
 
-JVM 集成测试使用真实 KSP 产物检查路由映射、参数注入、模块去重和结果回传；真机测试从首页点击入口，覆盖跨模块跳转、Activity 重建、结果只消费一次及系统返回。
+## 运行 Demo
 
----
+克隆仓库后使用 Gradle Wrapper。需要 JDK 21；Android Demo 需要对应 SDK，iOS 需要 macOS 和 Xcode，浏览器测试需要 Chrome。当前构建版本以 [版本目录](gradle/libs.versions.toml) 和 [Wrapper 配置](gradle/wrapper/gradle-wrapper.properties) 为准。
 
-## 常用查询
+| 平台 | 入口 | 运行或构建 |
+| --- | --- | --- |
+| Android | `androidApp` | `./gradlew :androidApp:assembleDebug`，随后安装 APK。 |
+| Desktop | `desktopApp` | `./gradlew :desktopApp:run` |
+| iOS | `iosApp` | 使用 Xcode 打开 `iosApp/iosApp.xcodeproj` 并运行。 |
+| Wasm | `webApp` | `./gradlew :webApp:wasmJsBrowserDevelopmentRun` |
+| Kotlin/JS | `webApp` | `./gradlew :webApp:jsBrowserDevelopmentRun` |
 
-```kotlin
-navigator.last()
-navigator.findClassByUrl("test://home/main")
-```
+首页“路由验证台”按五类组织用例：跳转与参数、拦截器、结果回传、导航栈和跨模块。每个用例给出输入、预期和实际反馈，页面展示当前导航栈。
 
-含义分别是：
+未注册 URL 用例在跳转失败回调中打开 Demo 兜底页，保留原始 URL；未注册实例通过 `NavDisplay` 的 fallback 展示兜底内容。清栈用例提供“重建首页”，用于恢复其他验证入口。
 
-- `last()`
-  当前栈顶实例，但不移除
-- `findClassByUrl(url)`
-  查 URL 对应的路由类
+## 常见问题
 
----
+### 为什么结果回传必须安装 decorator？
 
-## 使用建议
+`rememberRouteResult` 需要由 `rememberRouteResultNavEntryDecorator()` 提供当前 entry 的结果作用域。只提供 `LocalNavigator` 不足以创建结果接收槽位。
 
-1. 先把 `initRouter {}` 和 `Navigator` 接入跑通，再接参数注入和拦截器。
-2. 新的 Compose 页面，结果回传默认使用 `pushForResult(..., resultTo = rememberRouteResult(...))`。
-3. 非 Compose 接收结果时用 `pushForResult(...)`，回调接收 `RouteResult<R>`。
-4. DSL 结果入口只在需要组合低层 push 配置时使用；普通业务结果回传优先选择 `pushForResult`。
-5. 如果一个页面需要被 URL 打开，记得声明 `@Router(path = ...)`。
-6. `moduleId` 默认自动推导，冲突或需要固定身份时手动覆盖；宿主应用 `io.github.limuyang2.router` 聚合插件后，各端都只需调用一次 `RouterAggregatedRegistry.registerAll()`。
+### 未注册 URL 为什么没有自动打开 404 页面？
 
-## Web（Kotlin/JS 与 Wasm）
+未匹配 URL 会被拒绝入栈，导航栈保持原状。业务侧可在 `routeFailureCallback` 中定义兜底策略。Demo 的 404 页面是宿主定义的处理方式。
 
-运行时、KSP 模块索引和宿主聚合同时支持 `js` 与 `wasmJs`。业务模块与宿主需要声明相同的 Web target，并分别配置 `kspJs`、`kspWasmJs`；模块 ID 在所有 target 间保持一致。运行时发布产物为 `router-js`、`router-wasm-js`，KMP 使用 `io.github.limuyang2:router` 自动选择平台产物。
+### 是否可以把 NavDisplay 的 backStack 当普通列表修改？
 
-`webApp` 是浏览器宿主，复用 `composeApp` 和三个 feature 模块，入口先调用 `initDemoRouter()`，再通过 `ComposeViewport { RouterApp() }` 显示页面。JS/Wasm 共享 `webMain`；各 target 独立生成注册入口，使用同一套 URL 跳转、参数注入、拦截器与结果回传 API。
+请通过 `Navigator` 修改。直接增删列表会绕过实例唯一性、异步目标失效和结果结算规则。
 
-```bash
-# 启动 Wasm 或 JS 开发服务器
-./gradlew :webApp:wasmJsBrowserDevelopmentRun
-./gradlew :webApp:jsBrowserDevelopmentRun
+### 路由 URL 会同步到浏览器地址栏吗？
 
-# 生成可部署的静态产物
-./gradlew :webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution
+当前 URL 用于应用内部导航，不会自动同步浏览器地址栏或接管浏览器历史记录。
 
-# 浏览器回归测试，需要安装 Chrome（可通过 CHROME_BIN 指定路径）
-./gradlew :lib_router:jsBrowserTest :lib_router:wasmJsBrowserTest :composeApp:jsBrowserTest :composeApp:wasmJsBrowserTest
-```
+### 找不到生成的 RouterAggregatedRegistry 怎么办？
 
-两种 target 的静态产物分别位于 `webApp/build/dist/wasmJs/productionExecutable/` 和 `webApp/build/dist/js/productionExecutable/`。路由 URL 用于应用内部导航，当前不会自动同步浏览器地址栏或接管浏览器历史记录。
+先确认宿主启用了聚合、目标模块编译可见且配置了对应 target 的 KSP，再构建该 target。KMP 生成入口位于平台 source set，不能直接从 `commonMain` 引用。自定义包名后还需要调整导入。
+
+## 许可证
+
+KRouter 使用 [MIT License](LICENSE)。

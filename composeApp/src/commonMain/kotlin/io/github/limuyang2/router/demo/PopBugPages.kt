@@ -14,13 +14,13 @@ import io.github.limuyang2.router.RouteResult
 import io.github.limuyang2.router.rememberRouteResult
 
 @Composable
-fun PopBugAHomePage(resultState: DemoResultState) {
+fun PopBugAHomePage() {
     DemoBackHandler(true) {
         navigator.pop()
     }
 
-    var valueResultLabel by resultState.value
-    var fullResultLabel by resultState.result
+    var valueResultLabel by rememberSaveable { mutableStateOf<String?>(null) }
+    var fullResultLabel by rememberSaveable { mutableStateOf<String?>(null) }
     var launchCount by rememberSaveable { mutableIntStateOf(0) }
     val fullResultConsumer = rememberRouteResult<String>(key = "a-full-result") { result ->
         fullResultLabel = result.toDebugLabel()
@@ -73,17 +73,6 @@ fun PopBugAHomePage(resultState: DemoResultState) {
                 },
             )
 
-            DemoActionButton(
-                title = "进入 B（RouteResult callback）",
-                description = "使用 pushForResult<String>，回调结果直接显示在上方。",
-                onClick = {
-                    launchCount += 1
-                    navigator.pushForResult<String>(Router.PopBugB()) { result ->
-                        fullResultLabel = result.toDebugLabel()
-                        valueResultLabel = result.get() ?: "null"
-                    }
-                },
-            )
         }
     }
 }

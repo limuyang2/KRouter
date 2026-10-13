@@ -2,13 +2,15 @@ package io.github.limuyang2.router.demo
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import io.github.limuyang2.router.rememberRouteResult
 
 /** Separate result and stack scenarios from parameter injection examples. */
 @Composable
-fun VerificationPage(mode: String, resultState: DemoResultState) {
-    var actual by resultState.result
+fun VerificationPage(mode: String) {
+    var actual by rememberSaveable { mutableStateOf<String?>(null) }
     val consumer = rememberRouteResult<DetailResult> { actual = it.toString() }
     val urlConsumer = rememberRouteResult<DetailResult>(key = "verify-url") { actual = it.toString() }
     val stackMode = mode == "stack"
@@ -30,13 +32,9 @@ fun VerificationPage(mode: String, resultState: DemoResultState) {
         } else {
             DemoInfoCard("实际接收结果", actual ?: "尚未执行，请选择下方操作。")
             DemoInfoCard("预期结果", "携带结果：Success(value=DetailResult(str=from result))。\n不带结果：NoResult。\n定向回首页：首页显示相同业务值，中间页面移除。")
-            DemoActionButton("Consumer 接收", "返回后更新本页的实际接收结果。", {
+            DemoActionButton("实例跳转并接收", "构造 Router.Result，通过 Consumer 接收完整结果。", {
                 actual = "等待 Consumer 结果…"
                 navigator.pushForResult(Router.Result(null), resultTo = consumer)
-            })
-            DemoActionButton("callback 接收", "返回后在页面直接显示回调结果。", {
-                actual = "等待 callback 结果…"
-                navigator.pushForResult<DetailResult>(Router.Result(null)) { actual = it.toString() }
             })
             DemoActionButton("URL 跳转并接收", "xxxx://test/result，与实例跳转对照。", {
                 actual = "等待 URL 结果…"

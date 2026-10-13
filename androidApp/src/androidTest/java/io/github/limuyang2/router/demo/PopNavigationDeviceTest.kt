@@ -312,7 +312,7 @@ class PopNavigationDeviceTest {
         click("拦截器")
         click("验证@Router 页面拦截器")
         showDemo("参数详情")
-        click("打开结果回传页（Consumer）")
+        click("打开结果回传页（实例方式）")
         click("关闭并携带结果返回")
         showDemo("from result")
         compose.activityRule.scenario.recreate()
@@ -366,13 +366,13 @@ class PopNavigationDeviceTest {
     }
 
     @Test
-    fun verificationPageDisplaysCallbackAndUrlResults() {
+    fun verificationPageDisplaysConsumerAndUrlResults() {
         compose.runOnIdle {
             navigator.push { destination = Router.Home(); isCleanStack = true }
         }
         click("结果回传")
         click("验证结果接收方式")
-        click("callback 接收")
+        click("实例跳转并接收")
         click("关闭并携带结果返回")
         showDemo("Success(value=DetailResult(str=from result))")
         click("URL 跳转并接收")
@@ -400,18 +400,18 @@ class PopNavigationDeviceTest {
     }
 
     @Test
-    fun detailCallbackDisplaysResultAfterCallerAndActivityRecreation() {
+    fun detailConsumerDisplaysResultAfterCallerAndActivityRecreation() {
         compose.runOnIdle {
             navigator.push { destination = Router.Home(); isCleanStack = true }
         }
         click("拦截器")
         click("验证@Router 页面拦截器")
-        click("打开结果回传页（RouteResult callback）")
+        click("打开结果回传页（实例方式）")
         click("关闭并携带结果返回")
         showDemo("Success(value=DetailResult(str=from result))")
 
-        click("打开结果回传页（RouteResult callback）")
-        // The callback predates this recreation and must update the route's current UI state.
+        click("打开结果回传页（实例方式）")
+        // The stable result slot must bind the recreated caller's current consumer.
         compose.activityRule.scenario.recreate()
         click("不带结果返回")
         showDemo("NoResult")

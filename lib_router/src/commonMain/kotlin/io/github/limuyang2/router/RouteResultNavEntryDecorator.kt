@@ -23,6 +23,15 @@ internal val LocalRouteResultOwner = compositionLocalOf<RouteResultOwner?> { nul
  * 为 router result 系统提供和 Nav3 一致的 contentKey 作用域。
  *
  * 这个 decorator 应与 NavDisplay 的其它 entryDecorators 一起安装。
+ * 为 [rememberRouteResult] 提供 entry 上下文，并在 Nav3 确认内容作用域移除后清理结果状态。
+ *
+ * Creates the entry decorator aligning route-result ownership with Nav3 contentKey scopes.
+ * Install it in NavDisplay.entryDecorators alongside the other decorators. It provides the entry
+ * context for [rememberRouteResult] and clears result state after Nav3 confirms scope removal.
+ *
+ * @param navigator 与 NavDisplay 使用同一导航栈的 Navigator，默认取 [LocalNavigator] / Navigator backing
+ * the same NavDisplay stack; defaults to [LocalNavigator].
+ * @return 为每个 entry 提供结果作用域的装饰器 / Decorator providing the result-owner scope for each entry.
  */
 @Composable
 fun <T : Any> rememberRouteResultNavEntryDecorator(
