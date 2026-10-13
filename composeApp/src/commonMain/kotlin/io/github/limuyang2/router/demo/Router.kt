@@ -18,6 +18,16 @@ data class TestData(val a: String = "")
  */
 class Router {
 
+    @Router(host = "test", path = "verification")
+    class Verification(@param:RouterParam("mode") val mode: String = "results") : IRouterEntryProvider {
+        internal val resultState = DemoResultState()
+
+        @Composable
+        override fun UI() {
+            VerificationPage(mode, resultState)
+        }
+    }
+
 
     @Router(host = "test", path = "home")
     class Home : IRouterEntryProvider {
@@ -35,6 +45,14 @@ class Router {
         }
     }
 
+    @Router
+    class UrlFallback(@param:RouterParam("url") val url: String) : IRouterEntryProvider {
+        @Composable
+        override fun UI() {
+            FallbackPage(this)
+        }
+    }
+
     @Router(
         host = "test",
         path = "detail",
@@ -48,9 +66,11 @@ class Router {
         private val file: List<String>? = emptyList()
     ) :
         IRouterEntryProvider {
+        internal val resultState = DemoResultState()
+
         @Composable
         override fun UI() {
-            DetailPage(ids, names, source)
+            DetailPage(ids, names, source, resultState)
         }
     }
 
@@ -64,9 +84,11 @@ class Router {
         @param:RouterParam(name = "names") private val names: TestData = TestData(),
         private val file: List<String>? = emptyList()
     ) : IRouterEntryProvider {
+        internal val resultState = DemoResultState()
+
         @Composable
         override fun UI() {
-            DetailPage(ids, names, source)
+            DetailPage(ids, names, source, resultState)
         }
     }
 
@@ -99,9 +121,11 @@ class Router {
 
     @Router(host = "test", path = "pop-bug-a")
     class PopBugA : IRouterEntryProvider {
+        internal val resultState = DemoResultState()
+
         @Composable
         override fun UI() {
-            PopBugAHomePage()
+            PopBugAHomePage(resultState)
         }
     }
 

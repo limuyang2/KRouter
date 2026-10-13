@@ -9,6 +9,19 @@
 - 页面结果回传
 - `URL -> RouteClass` 查询
 
+## Demo 功能验证
+
+`composeApp` 首页为「路由验证台」，按跳转与参数、拦截器、结果回传、导航栈、跨模块五类组织用例。每个入口给出输入和预期结果，目标页面显示实际参数或接收结果；所有页面使用相同布局与主题，顶部导航栈从左到右展示栈底到栈顶。
+
+未注册 URL 用例由 Demo 在 `routeFailureCallback` 中打开兜底页，保留原始 URL；运行库本身会拒绝未匹配 URL 并保持导航栈。未注册实例则通过 `NavDisplay` 的 fallback 展示兜底内容。
+
+- 结果回传：选择 Consumer、callback 或 URL 方式，在结果页携带结果返回或不带结果关闭，对照 `Success` / `NoResult`；定向返回的结果显示在首页。
+- callback 示例将展示状态保存在路由页面实例中，确保页面离开 Composition 后重建时仍能读到回调结果。普通 callback 保留发起时的闭包；Compose 页面使用局部状态接收结果时，推荐 `rememberRouteResult` 的 Consumer 方式。
+- 导航栈：清栈后观察仅剩一个页面，尝试返回验证根页保护，再点击「重建首页」恢复入口。A/B/C 用例对照正常返回和替换中间页后的 `Cancelled`。
+- 跨模块：通过商品 URL 或账户实例进入业务模块，再到共享帮助页返回结果，观察接收次数。
+
+桌面运行：`./gradlew :desktopApp:run`；Android 构建：`./gradlew :androidApp:assembleDebug`。
+
 ## 5.1.0 更新（2026-09-07）
 
 - 模块注册改为按实际编译依赖读取版本化索引，支持本地模块、Maven 发布模块和多平台静态注册；新增业务模块插件 `io.github.limuyang2.router.module`。

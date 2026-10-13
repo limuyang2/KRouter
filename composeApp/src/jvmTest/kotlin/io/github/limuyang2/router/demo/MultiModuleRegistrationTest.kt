@@ -18,10 +18,39 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /** Uses the actual generated host registry and the three separately compiled feature modules. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MultiModuleRegistrationTest {
+    @Test
+    fun unmatchedUrlFailsWithoutChangingStack() = withNavigator { navigator ->
+        val home = navigator.last()
+        var failed = false
+        navigator.push {
+            url = "test://missing/page"
+            routeFailureCallback = { failed = true }
+        }
+        runCurrent()
+        assertTrue(failed)
+        assertSame(home, navigator.last())
+        assertEquals(1, navigator.backStack.size)
+    }
+
+    @Test
+    fun unknownUrlDemoOpensFallbackWithOriginalUrlAndCanReturnHome() = withNavigator { navigator ->
+        val home = navigator.last()
+        val url = "test://missing/page?source=demo"
+        navigator.openUnknownUrlDemo(url)
+        runCurrent()
+        assertEquals(url, assertIs<Router.UrlFallback>(navigator.last()).url)
+        assertEquals(2, navigator.backStack.size)
+        navigator.pop()
+        runCurrent()
+        assertSame(home, navigator.last())
+        assertEquals(1, navigator.backStack.size)
+    }
+
     @Test
     fun aggregatesDiamondDependencyOnceAndResolvesAllFeatureRoutes() = withNavigator { navigator ->
         assertEquals(ProductPage::class, navigator.findClassByUrl("test://modules/product?id=42"))

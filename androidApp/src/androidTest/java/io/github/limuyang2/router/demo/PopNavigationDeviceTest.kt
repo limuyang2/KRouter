@@ -308,16 +308,17 @@ class PopNavigationDeviceTest {
         compose.runOnIdle {
             navigator.push { destination = Router.Home(); isCleanStack = true }
         }
-        show("首页")
-        click("@Router 拦截器详情页")
-        show("参数详情")
+        showDemo("路由验证台")
+        click("拦截器")
+        click("验证@Router 页面拦截器")
+        showDemo("参数详情")
         click("打开结果回传页（Consumer）")
         click("关闭并携带结果返回")
-        show("from result")
+        showDemo("from result")
         compose.activityRule.scenario.recreate()
-        show("参数详情")
+        showDemo("参数详情")
         pressBack()
-        show("首页")
+        showDemo("路由验证台")
         compose.runOnIdle { assertEquals(1, navigator.backStack.size) }
     }
 
@@ -328,17 +329,18 @@ class PopNavigationDeviceTest {
         compose.runOnIdle {
             navigator.push { destination = Router.Home(); isCleanStack = true }
         }
-        show("首页")
-        click("打开商品详情")
-        show("商品编号：42")
+        showDemo("路由验证台")
+        click("跨模块")
+        click("验证跨模块 URL 注册")
+        showDemo("商品编号：42")
         click("咨询商品")
-        show("帮助主题：商品 42")
+        showDemo("帮助主题：商品 42")
         click("问题已解决")
-        show("咨询结果：已解决（1 次）")
+        showDemo("咨询结果：已解决（1 次）")
         compose.activityRule.scenario.recreate()
-        show("咨询结果：已解决（1 次）")
+        showDemo("咨询结果：已解决（1 次）")
         pressBack()
-        show("首页")
+        showDemo("路由验证台")
         compose.runOnIdle { assertEquals(1, navigator.backStack.size) }
     }
 
@@ -347,19 +349,95 @@ class PopNavigationDeviceTest {
         compose.runOnIdle {
             navigator.push { destination = Router.Home(); isCleanStack = true }
         }
-        show("首页")
-        click("打开账户中心")
-        show("用户名：小明")
+        showDemo("路由验证台")
+        click("跨模块")
+        click("验证跨模块实例注册")
+        showDemo("用户名：小明")
         click("账户帮助")
-        show("帮助主题：账户服务")
+        showDemo("帮助主题：账户服务")
         click("问题已解决")
-        show("处理结果：已解决（1 次）")
+        showDemo("处理结果：已解决（1 次）")
         click("账户帮助")
         pressBack()
-        show("处理结果：已解决（1 次）")
+        showDemo("处理结果：已解决（1 次）")
         pressBack()
-        show("首页")
+        showDemo("路由验证台")
         compose.runOnIdle { assertEquals(1, navigator.backStack.size) }
+    }
+
+    @Test
+    fun verificationPageDisplaysCallbackAndUrlResults() {
+        compose.runOnIdle {
+            navigator.push { destination = Router.Home(); isCleanStack = true }
+        }
+        click("结果回传")
+        click("验证结果接收方式")
+        click("callback 接收")
+        click("关闭并携带结果返回")
+        showDemo("Success(value=DetailResult(str=from result))")
+        click("URL 跳转并接收")
+        click("不带结果返回")
+        showDemo("NoResult")
+    }
+
+    @Test
+    fun unknownUrlDemoDisplaysFallbackAndReturnsToHome() {
+        compose.runOnIdle {
+            navigator.push { destination = Router.Home(); isCleanStack = true }
+        }
+        click("验证未注册 URL")
+        showDemo("路由兜底页")
+        showDemo("404")
+        showDemo("页面未找到")
+        showDemo("test://missing/page")
+        compose.runOnIdle {
+            assertTrue(navigator.last() is Router.UrlFallback)
+            assertEquals(2, navigator.backStack.size)
+        }
+        click("返回验证入口")
+        showDemo("路由验证台")
+        compose.runOnIdle { assertEquals(1, navigator.backStack.size) }
+    }
+
+    @Test
+    fun detailCallbackDisplaysResultAfterCallerAndActivityRecreation() {
+        compose.runOnIdle {
+            navigator.push { destination = Router.Home(); isCleanStack = true }
+        }
+        click("拦截器")
+        click("验证@Router 页面拦截器")
+        click("打开结果回传页（RouteResult callback）")
+        click("关闭并携带结果返回")
+        showDemo("Success(value=DetailResult(str=from result))")
+
+        click("打开结果回传页（RouteResult callback）")
+        // The callback predates this recreation and must update the route's current UI state.
+        compose.activityRule.scenario.recreate()
+        click("不带结果返回")
+        showDemo("NoResult")
+    }
+
+    @Test
+    fun cleanStackDemoProtectsRootAndCanRestoreHome() {
+        compose.runOnIdle {
+            navigator.push { destination = Router.Home(); isCleanStack = true }
+        }
+        click("导航栈")
+        click("验证清栈与根页保护")
+        click("清栈进入新的验证页")
+        await { navigator.backStack.size == 1 && navigator.last() is Router.Verification }
+        val root = navigator.last()
+        click("尝试返回")
+        compose.runOnIdle {
+            assertEquals(1, navigator.backStack.size)
+            assertSame(root, navigator.last())
+        }
+        click("重建首页")
+        showDemo("路由验证台")
+        compose.runOnIdle {
+            assertEquals(1, navigator.backStack.size)
+            assertTrue(navigator.last() is Router.Home)
+        }
     }
 
     private fun gate() = CompletableDeferred<Unit>().also { gates += it }
@@ -386,6 +464,8 @@ class PopNavigationDeviceTest {
     }
 
     private fun show(text: String) = compose.onNodeWithText(text).assertIsDisplayed()
+
+    private fun showDemo(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
 
     private fun click(text: String) {
         compose.onNodeWithText(text).performScrollTo().performClick()

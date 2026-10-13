@@ -7,33 +7,29 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun WebPage(url: String) {
-    println("打开网页：$url")
-
     DemoScreen(
-        eyebrow = "Web Interceptor",
-        title = "Fake Web Page",
-        subtitle = "这里不真正渲染浏览器，而是确认 http/https 已经被拦截并改写成 Router.Web。",
+        eyebrow = "拦截器 · 全局重定向",
+        title = "Web 重定向验证",
+        subtitle = "预期：http/https 被改写为 Router.Web，原始链接完整保留。此页用于观察重定向结果。",
         onBack = { navigator.pop() },
     ) {
         DemoInfoCard(
-            title = "当前 URL",
+            title = "实际收到的 URL",
             body = url,
-            tone = androidx.compose.ui.graphics.Color(0xFFF6FAFF),
         )
 
         Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
             DemoActionButton(
                 title = "返回上一页",
                 description = "关闭当前 Web 占位页，回到触发跳转的位置。",
-                accent = androidx.compose.ui.graphics.Color(0xFF284B63),
                 onClick = { navigator.pop() },
             )
         }
 
         Text(
-            text = "如果后续要接真实 WebView，可以把 Router.Web 的 UI 替换为平台实际承载。",
+            text = "验证完成后返回入口，继续验证页面级拦截器。",
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-            color = androidx.compose.ui.graphics.Color(0xFF475467),
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

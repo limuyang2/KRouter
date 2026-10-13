@@ -20,6 +20,14 @@ fun initDemoRouter() {
 
 internal expect fun registerAggregatedRouters()
 
+/** The host chooses a fallback screen after the runtime rejects an unmatched URL. */
+internal fun Navigator.openUnknownUrlDemo(url: String) {
+    push {
+        this.url = url
+        routeFailureCallback = { push(Router.UrlFallback(url)) }
+    }
+}
+
 private fun createDemoNavigator(): Navigator = Navigator("test://test/home")
 
 
