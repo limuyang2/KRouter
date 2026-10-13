@@ -243,6 +243,43 @@ class RouterKspFunctionalTest {
         assertTrue(File(root, "host/build/generated/routerAggregate/desktopMain/kotlin/sample/AllRoutes.kt").readText().contains("ModuleRouterRegistry"))
     }
 
+    @Test fun `JS and Wasm hosts consume local and published target matching indices`() {
+        val root = fixture(lateRoutes = false)
+        assertTrue(File(root, "api/src/main").renameTo(File(root, "api/src/commonMain")))
+        File(root, "host/src/desktopMain").deleteRecursively()
+        listOf("api", "feature", "host").forEach { name ->
+            File(root, "$name/build.gradle").writeText("""
+                plugins {
+                    id 'org.jetbrains.kotlin.multiplatform'
+                    id 'maven-publish'
+                    ${if (name == "api") "" else "id 'com.google.devtools.ksp'; id '${if (name == "host") "io.github.limuyang2.router" else "io.github.limuyang2.router.module"}'"}
+                }
+                group='example'; version='1.0'
+                kotlin {
+                    js { browser() }; wasmJs { browser() }
+                    ${if (name == "api") "" else "sourceSets { commonMain { dependencies { if (providers.gradleProperty('external').isPresent()) api('example:${if (name == "host") "feature" else "api"}:1.0'); else api(project(':${if (name == "host") "feature" else "api"}')) } } }"}
+                }
+                ${if (name == "api") "" else "dependencies { add('kspJs', project(':processor')); add('kspWasmJs', project(':processor')) }; router { registryPackage.set('sample'); registryName.set('AllRoutes') }"}
+                publishing { repositories { maven { url=rootProject.layout.projectDirectory.dir('repo') } } }
+            """.trimIndent())
+        }
+        listOf("js", "wasmJs").forEach { target ->
+            File(root, "host/src/${target}Main/kotlin/sample/Start.kt").apply {
+                parentFile.mkdirs()
+                writeText("package sample\nfun start() = AllRoutes.registerAll()")
+            }
+        }
+        run(root, ":host:compileKotlinJs", ":host:compileKotlinWasmJs")
+        run(root, ":api:publish", ":feature:publish")
+        val result = run(root, ":host:compileKotlinJs", ":host:compileKotlinWasmJs", "-Pexternal=true")
+        listOf("js", "wasmJs").forEach { target ->
+            assertNull(result.task(":feature:prepare${target.capitalized()}MainRouterIndex"))
+            val index = RouterIndex.decode(File(root, "feature/build/routerIndex/${target}Main/router-index.json").readText())
+            val aggregate = File(root, "host/build/generated/routerAggregate/${target}Main/kotlin/sample/AllRoutes.kt").readText()
+            assertTrue(aggregate.contains(index.registries.single()))
+        }
+    }
+
     @Test fun `standalone Kotlin JVM host consumes local and published router modules`() {
         val root = fixture(lateRoutes = false)
         listOf("feature", "host").forEach { name ->

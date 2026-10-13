@@ -28,10 +28,10 @@ object RouterSingleton {
 
         val existingKeys = providers
             .asSequence()
-            .map(::providerKey)
+            .map { it::class }
             .toMutableSet()
         newProviders.forEach { provider ->
-            val key = providerKey(provider)
+            val key = provider::class
             if (existingKeys.add(key)) {
                 providers.add(provider)
             }
@@ -43,10 +43,6 @@ object RouterSingleton {
     }
 
     fun getConfigOrNull(): Config? = mConfig
-
-    private fun providerKey(provider: ModuleRouter): String {
-        return provider::class.qualifiedName ?: provider::class.toString()
-    }
 
     class Config private constructor(
         val defaultScheme: String,

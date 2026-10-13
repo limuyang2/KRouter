@@ -109,7 +109,9 @@ internal fun buildRouteResultSlotId(
 ): String {
     // 用类型 + key 组合出稳定槽位名。
     // 这里不把 route identity 拼进字符串里，是因为 route identity 已经由外层 entry 作用域限定。
-    val typeKey = expectedType?.qualifiedName ?: "any"
+    val typeKey = expectedType?.routeResultTypeKey() ?: "any"
     val suffix = key ?: "__default__"
     return "$typeKey#$suffix"
 }
+
+internal expect fun KClass<*>.routeResultTypeKey(): String

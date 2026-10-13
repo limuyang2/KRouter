@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
@@ -20,6 +22,19 @@ kotlin {
     }
 
     jvm()
+
+    js {
+        browser {
+            testTask { useKarma { useChromeHeadless() } }
+        }
+    }
+
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser {
+            testTask { useKarma { useChromeHeadless() } }
+        }
+    }
 
     listOf(
         iosArm64(),
@@ -77,6 +92,8 @@ publishing {
             "kotlinMultiplatform" -> mArtifactId
             "android" -> "$mArtifactId-android"
             "jvm" -> "$mArtifactId-jvm"
+            "js" -> "$mArtifactId-js"
+            "wasmJs" -> "$mArtifactId-wasm-js"
             "iosArm64" -> "$mArtifactId-ios-arm64"
             "iosSimulatorArm64" -> "$mArtifactId-ios-simulator-arm64"
             else -> artifactId

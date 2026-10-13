@@ -2,7 +2,8 @@ package io.github.limuyang2.router
 
 /**
  * 跨平台 URI 抽象，提供 scheme / host / path / query 的解析能力。
- * 各平台通过 expect/actual 对接 Uri (Android) / NSURLComponents (iOS) / java.net.URI (JVM)。
+ * 各平台通过 expect/actual 对接 Uri (Android) / NSURLComponents (iOS) / java.net.URI (JVM)，
+ * JS 和 Wasm 共用 Kotlin URI 解析实现。
  */
 expect class RouteUri {
 

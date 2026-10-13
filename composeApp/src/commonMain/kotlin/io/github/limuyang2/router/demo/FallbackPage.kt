@@ -31,7 +31,7 @@ fun FallbackPage(route: Any) {
     val routeInfo = if (unknownRoute != null) {
         unknownRoute.uri?.toString() ?: "null"
     } else {
-        route::class.qualifiedName ?: "Unknown"
+        route::class.simpleName ?: "Unknown"
     }
 
     Box(

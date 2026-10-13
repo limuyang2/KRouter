@@ -74,7 +74,7 @@ router-module = { id = "io.github.limuyang2.router.module", version.ref = "route
 
 运行时依赖使用 `implementation(libs.router.runtime)`；KMP 放在 `commonMain.dependencies`。本版验证的工具链为 Gradle 9.6.1、Kotlin 2.4.0、AGP 9.2.1、KSP 2.3.10，目标包括 Android、JVM、iosArm64 和 iosSimulatorArm64。
 
-KSP 在 KMP 下需要按 target 配置（`kspAndroid` / `kspJvm` / `kspIosArm64` / `kspIosSimulatorArm64`），完整接入方式见下文「模块注册（聚合插件）」。
+KSP 在 KMP 下需要按 target 配置（`kspAndroid` / `kspJvm` / `kspIosArm64` / `kspIosSimulatorArm64` / `kspJs` / `kspWasmJs`），完整接入方式见下文「模块注册（聚合插件）」。
 
 ---
 
@@ -90,7 +90,7 @@ initRouter {
 RouterAggregatedRegistry.registerAll()
 ```
 
-> `RouterAggregatedRegistry` 由聚合插件生成，Android / Desktop / iOS 三端用法一致，详见下文「模块注册（聚合插件）」。顺序必须是先 `initRouter {}`，再 `registerAll()`。
+> `RouterAggregatedRegistry` 由聚合插件生成，Android / Desktop / iOS / Web 各端用法一致，详见下文「模块注册（聚合插件）」。顺序必须是先 `initRouter {}`，再 `registerAll()`。
 
 配置项目前只有两个：
 
@@ -613,7 +613,7 @@ return chain.proceed(chain.request().withResult(newValue))
 
 ## 模块注册（聚合插件）
 
-路由模块的注册通过 Gradle 聚合插件统一处理，**Android / Desktop / iOS 三端用法完全一致**，不再依赖 JVM `ServiceLoader`，也无需在 iOS 侧手动注册。
+路由模块的注册通过 Gradle 聚合插件统一处理，**Android / Desktop / iOS / Web 各端用法完全一致**，不再依赖 JVM `ServiceLoader`，也无需在 iOS 侧手动注册。
 
 > 以下接入方式适用于 5.1.0。升级时需要同时更新 Gradle 插件和 router-ksp；旧版 5.0.x 不支持 module 插件及此索引协议。
 
@@ -640,6 +640,8 @@ dependencies {
     add("kspJvm", libs.router.ksp)
     add("kspIosArm64", libs.router.ksp)
     add("kspIosSimulatorArm64", libs.router.ksp)
+    add("kspJs", libs.router.ksp)
+    add("kspWasmJs", libs.router.ksp)
 }
 ```
 
@@ -683,7 +685,7 @@ router {
 }
 ```
 
-插件按实际 main compilation 或 Android variant 注册任务，支持自定义 JVM target、Android Application/Library（含 flavor）、Android KMP 和 Kotlin Native；当前验证的 Native 目标为 iosArm64、iosSimulatorArm64。测试 compilation 和 JS/Wasm 暂不支持。本仓库通过 `includeBuild("router-gradle-plugin")` 使用本地插件；外部项目需集中配置配套版本。
+插件按实际 main compilation 或 Android variant 注册任务，支持自定义 JVM target、Android Application/Library（含 flavor）、Android KMP、Kotlin Native、JS 和 Wasm；当前验证的 Native 目标为 iosArm64、iosSimulatorArm64。测试 compilation 暂不支持。本仓库通过 `includeBuild("router-gradle-plugin")` 使用本地插件；外部项目需集中配置配套版本。
 
 宿主必须能在编译期访问需要注册的模块。对被 `implementation` 隐藏或仅通过 `runtimeOnly` 引入的 Router 模块，JVM/Android 构建会报错，提示在宿主显式添加依赖或由中间模块通过 `api` 暴露。Native 按 compilation 的依赖图聚合，不承诺发现图外的隐藏依赖。
 
@@ -705,13 +707,13 @@ RouterAggregatedRegistry.registerAll()
 
 注意顺序：必须先 `initRouter {}`（`registerModuleRouters` 内部会校验初始化状态），再 `registerAll()`。
 
-由于 `RouterAggregatedRegistry` 由聚合插件按 target 生成在平台 source set 中，commonMain 无法直接引用。推荐用 `expect/actual` 在各平台调用，或直接在各平台入口（Android `Application.onCreate` / Desktop `main` / iOS SwiftUI `init`）分别调用。本仓库 demo 在 `initDemoRouter()` 内通过 `expect fun registerAggregatedRouters()` 统一分发，三端入口都只调一次 `initDemoRouter()`。
+由于 `RouterAggregatedRegistry` 由聚合插件按 target 生成在平台 source set 中，commonMain 无法直接引用。推荐用 `expect/actual` 在各平台调用，或直接在各平台入口（Android `Application.onCreate` / Desktop `main` / iOS SwiftUI `init` / Web `main`）分别调用。本仓库 demo 在 `initDemoRouter()` 内通过 `expect fun registerAggregatedRouters()` 统一分发，各端入口都只调一次 `initDemoRouter()`。
 
 Kotlin JVM/KMP 宿主的聚合目录通过 KGP 2.4 的 `generatedKotlin` 注册到 IDE。升级插件后请同步 Gradle；首次使用还需构建对应 target 以生成入口，例如 `./gradlew :composeApp:compileKotlinIosArm64`。无需手动标记源码目录，也不要将聚合输出加入 `commonMain` 或 KSP 输入。
 
 ### 4. 仓库多模块示例
 
-三个示例模块均使用 module 插件，支持 Android、JVM、iosArm64 和 iosSimulatorArm64：
+三个示例模块均使用 module 插件，支持 Android、JVM、iosArm64、iosSimulatorArm64、js 和 wasmJs：
 
 | 模块 | 页面与入口 | moduleId |
 | --- | --- | --- |
@@ -758,4 +760,24 @@ navigator.findClassByUrl("test://home/main")
 3. 非 Compose 接收结果时用 `pushForResult(...)`，回调接收 `RouteResult<R>`。
 4. DSL 结果入口只在需要组合低层 push 配置时使用；普通业务结果回传优先选择 `pushForResult`。
 5. 如果一个页面需要被 URL 打开，记得声明 `@Router(path = ...)`。
-6. `moduleId` 默认自动推导，冲突或需要固定身份时手动覆盖；宿主应用 `io.github.limuyang2.router` 聚合插件后，三端都只需调用一次 `RouterAggregatedRegistry.registerAll()`。
+6. `moduleId` 默认自动推导，冲突或需要固定身份时手动覆盖；宿主应用 `io.github.limuyang2.router` 聚合插件后，各端都只需调用一次 `RouterAggregatedRegistry.registerAll()`。
+
+## Web（Kotlin/JS 与 Wasm）
+
+运行时、KSP 模块索引和宿主聚合同时支持 `js` 与 `wasmJs`。业务模块与宿主需要声明相同的 Web target，并分别配置 `kspJs`、`kspWasmJs`；模块 ID 在所有 target 间保持一致。运行时发布产物为 `router-js`、`router-wasm-js`，KMP 使用 `io.github.limuyang2:router` 自动选择平台产物。
+
+`webApp` 是浏览器宿主，复用 `composeApp` 和三个 feature 模块，入口先调用 `initDemoRouter()`，再通过 `ComposeViewport { RouterApp() }` 显示页面。JS/Wasm 共享 `webMain`；各 target 独立生成注册入口，使用同一套 URL 跳转、参数注入、拦截器与结果回传 API。
+
+```bash
+# 启动 Wasm 或 JS 开发服务器
+./gradlew :webApp:wasmJsBrowserDevelopmentRun
+./gradlew :webApp:jsBrowserDevelopmentRun
+
+# 生成可部署的静态产物
+./gradlew :webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution
+
+# 浏览器回归测试，需要安装 Chrome（可通过 CHROME_BIN 指定路径）
+./gradlew :lib_router:jsBrowserTest :lib_router:wasmJsBrowserTest :composeApp:jsBrowserTest :composeApp:wasmJsBrowserTest
+```
+
+两种 target 的静态产物分别位于 `webApp/build/dist/wasmJs/productionExecutable/` 和 `webApp/build/dist/js/productionExecutable/`。路由 URL 用于应用内部导航，当前不会自动同步浏览器地址栏或接管浏览器历史记录。

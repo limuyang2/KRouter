@@ -15,7 +15,7 @@
 - 聚合任务支持 UP-TO-DATE、Build Cache 和 Configuration Cache。
 - 保留 `RouterAggregatedRegistry.registerAll()` 及 `Navigator` 的运行时使用方式。
 
-本次架构调整覆盖 `router-gradle-plugin`、`lib_router_ksp` 和 Demo 构建接入。测试 compilation、JS/Wasm 和动态特性模块独立安装后的发现不纳入首版支持承诺；适配层需允许后续扩展。
+本次架构调整覆盖 `router-gradle-plugin`、`lib_router_ksp` 和 Demo 构建接入。测试 compilation 和动态特性模块独立安装后的发现不纳入支持范围；JS/Wasm 已补充生产 compilation 的索引与聚合支持。
 
 ## 2. 改造前的问题
 
@@ -129,6 +129,7 @@ KMP Native 的可见性以实际 compilation/link 模型验证，不能照搬 JV
 | Android Application/Library | debug/release、flavor | 不同模块的变体匹配、fallback、缺失维度 |
 | Android KMP Library | 当前工程使用的 Android KMP 插件 | AGP/KGP 提供的模型与普通 Android variant 模型差异 |
 | Kotlin Native | iosArm64、iosSimulatorArm64 | 每个平台的索引、编译输入和 framework 链接 |
+| Kotlin Web | js、wasmJs | 每个 target 独立 KSP、匹配本地和发布索引、浏览器运行 |
 
 不支持的平台给出明确诊断，不生成没有使用者的任务。AGP、KGP、KSP 的 API 差异封装在适配器中；必要的版本相关约定集中维护并有兼容性测试。
 

@@ -14,7 +14,7 @@ fun initDemoRouter() {
         isLog(true)
     }
     // 由宿主聚合插件生成的 RouterAggregatedRegistry 统一注册所有模块，
-    // Android/Desktop/iOS 三端一致，不再依赖 ServiceLoader 或手动注册。
+    // Android/Desktop/iOS/Web 一致，不再依赖 ServiceLoader 或手动注册。
     registerAggregatedRouters()
 }
 

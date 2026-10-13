@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
@@ -22,6 +24,21 @@ kotlin {
     }
 
     jvm()
+
+    js {
+        binaries.executable()
+        browser {
+            testTask { useKarma { useChromeHeadless() } }
+        }
+    }
+
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        binaries.executable()
+        browser {
+            testTask { useKarma { useChromeHeadless() } }
+        }
+    }
 
     listOf(
         iosArm64(),
@@ -68,6 +85,10 @@ kotlin {
         jvmMain.dependencies {
         }
 
+        webTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
         jvmTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
         }
@@ -78,6 +99,8 @@ kotlin {
 dependencies {
     add("kspAndroid", project(":lib_router_ksp"))
     add("kspJvm", project(":lib_router_ksp"))
+    add("kspJs", project(":lib_router_ksp"))
+    add("kspWasmJs", project(":lib_router_ksp"))
     add("kspIosArm64", project(":lib_router_ksp"))
     add("kspIosSimulatorArm64", project(":lib_router_ksp"))
 }

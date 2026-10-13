@@ -22,7 +22,8 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Kotlin Web tooling adds temporary, module-filtered Node.js/Yarn distribution repositories.
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
         mavenCentral()
@@ -50,3 +51,4 @@ include(":desktopApp")
 include(":demo-feature-product")
 include(":demo-feature-account")
 include(":demo-feature-shared")
+include(":webApp")

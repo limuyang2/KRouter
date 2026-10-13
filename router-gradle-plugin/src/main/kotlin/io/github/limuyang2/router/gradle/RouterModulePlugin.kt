@@ -33,8 +33,8 @@ class RouterModulePlugin : Plugin<Project> {
                     val target = this
                     compilations.all {
                         if (name == "main" && platformType != KotlinPlatformType.common) {
-                            check(platformType in setOf(KotlinPlatformType.jvm, KotlinPlatformType.androidJvm, KotlinPlatformType.native)) {
-                                "Router indices do not yet support target '${target.name}' ($platformType). Supported adapters: JVM, Android, Kotlin Native."
+                            check(platformType in setOf(KotlinPlatformType.jvm, KotlinPlatformType.androidJvm, KotlinPlatformType.native, KotlinPlatformType.js, KotlinPlatformType.wasm)) {
+                                "Router indices do not yet support target '${target.name}' ($platformType). Supported adapters: JVM, Android, Kotlin Native, JS, Wasm."
                             }
                             project.registerKotlinCompilation(extension, this, target.apiElementsConfigurationName, target.runtimeElementsConfigurationName)
                         }
