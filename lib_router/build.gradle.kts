@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
     `maven-publish`
+    signing
 }
 
 kotlin {
@@ -13,7 +14,7 @@ kotlin {
 
     android {
         namespace = "io.github.limuyang2.router"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 26
 
         compilerOptions {
@@ -83,6 +84,8 @@ val mVersion = property("ROUTER_VERSION") as String
 group = mGroupId
 version = mVersion
 
+apply(from = rootProject.file("gradle/maven-central.gradle.kts"))
+
 publishing {
     publications.withType<MavenPublication>().configureEach {
         groupId = mGroupId
@@ -97,16 +100,6 @@ publishing {
             "iosArm64" -> "$mArtifactId-ios-arm64"
             "iosSimulatorArm64" -> "$mArtifactId-ios-simulator-arm64"
             else -> artifactId
-        }
-    }
-
-    repositories {
-        maven {
-            url = uri(property("MAVEN_URL") as String)
-            credentials {
-                username = property("MAVEN_USERNAME") as String
-                password = property("MAVEN_PASSWORD") as String
-            }
         }
     }
 }

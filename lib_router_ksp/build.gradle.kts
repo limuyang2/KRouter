@@ -1,12 +1,13 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
     `maven-publish`
+    signing
 }
 
 java {
+    withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
-    withSourcesJar()
 }
 
 dependencies {
@@ -21,31 +22,18 @@ kotlin.sourceSets.named("main") {
     kotlin.srcDir("../router-index-protocol/src/main/kotlin")
 }
 
-// 上传
 val mGroupId = "io.github.limuyang2"
 val mArtifactId = "router-ksp"
 val mVersion = property("ROUTER_VERSION") as String
 
+group = mGroupId
+version = mVersion
 
 publishing {
-    publications {
-
-        create<MavenPublication>("maven") {
-            from(components["java"])
-            groupId = mGroupId
-            artifactId = mArtifactId
-            version = mVersion
-        }
+    publications.create<MavenPublication>("maven") {
+        from(components["java"])
+        artifactId = mArtifactId
     }
-    repositories {
-        maven {
-            url = uri(property("MAVEN_URL") as String)
-            credentials {
-                username = property("MAVEN_USERNAME") as String
-                password = property("MAVEN_PASSWORD") as String
-            }
-        }
-
-    }
-
 }
+
+apply(from = rootProject.file("gradle/maven-central.gradle.kts"))

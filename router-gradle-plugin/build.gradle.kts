@@ -2,12 +2,18 @@ plugins {
     `kotlin-dsl`
     `java-gradle-plugin`
     `maven-publish`
+    signing
 }
 
 group = "io.github.limuyang2"
-version = property("ROUTER_VERSION") as String
+version = providers.gradleProperty("ROUTER_VERSION").orElse(
+    providers.fileContents(layout.projectDirectory.file("../gradle.properties")).asText.map { content ->
+        content.lineSequence().first { it.startsWith("ROUTER_VERSION=") }.substringAfter('=').trim()
+    },
+).get()
 
 java {
+    withSourcesJar()
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
@@ -40,22 +46,16 @@ gradlePlugin {
         create("router") {
             id = "io.github.limuyang2.router"
             implementationClass = "io.github.limuyang2.router.gradle.RouterPlugin"
+            displayName = "KRouter Host Plugin"
+            description = "Aggregates KRouter module indices into a static host registry."
         }
         create("routerModule") {
             id = "io.github.limuyang2.router.module"
             implementationClass = "io.github.limuyang2.router.gradle.RouterModulePlugin"
+            displayName = "KRouter Module Plugin"
+            description = "Produces stable KRouter module indices for dependency-aware registration."
         }
     }
 }
 
-publishing {
-    repositories {
-        maven {
-            url = uri(providers.gradleProperty("MAVEN_URL").get())
-            credentials {
-                username = providers.gradleProperty("MAVEN_USERNAME").get()
-                password = providers.gradleProperty("MAVEN_PASSWORD").get()
-            }
-        }
-    }
-}
+apply(from = file("../gradle/maven-central.gradle.kts"))
