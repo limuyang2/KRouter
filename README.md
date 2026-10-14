@@ -2,7 +2,7 @@
 
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
-**项目状态：开发中，尚未发布。**
+**项目状态：已发布 [1.0.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）。**
 
 ## 项目定位
 
@@ -35,7 +35,89 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 
 ## 安装
 
-<!-- 尚未发布。发布后补充依赖坐标、插件版本和安装方式。 -->
+KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.0.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
+
+| 构件 | 坐标 | 说明 |
+| --- | --- | --- |
+| 运行时库 | [io.github.limuyang2:router](https://central.sonatype.com/artifact/io.github.limuyang2/router) | KMP 库，按 target 解析 Android / JVM / iOS / JS / Wasm 变体。 |
+| KSP 处理器 | [io.github.limuyang2:router-ksp](https://central.sonatype.com/artifact/io.github.limuyang2/router-ksp) | 生成路由信息、实例工厂和注册代码，每个 target 单独添加。 |
+| 宿主插件 | [io.github.limuyang2.router](https://central.sonatype.com/artifact/io.github.limuyang2.router/io.github.limuyang2.router.gradle.plugin) | 聚合依赖索引，生成 `RouterAggregatedRegistry`。 |
+| 业务模块插件 | [io.github.limuyang2.router.module](https://central.sonatype.com/artifact/io.github.limuyang2.router.module/io.github.limuyang2.router.module.gradle.plugin) | 生成模块索引。两个插件共用 [router-gradle-plugin](https://central.sonatype.com/artifact/io.github.limuyang2/router-gradle-plugin) 实现。 |
+
+环境要求：JDK 21；Android 目标 compileSdk 37、minSdk 26；需另行应用与 Kotlin 版本匹配的 KSP 插件（仓库使用 Kotlin 2.4.21 + KSP 2.3.10）。
+
+### 1. 配置仓库
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+```
+
+### 2. 业务模块
+
+```kotlin
+plugins {
+    id("io.github.limuyang2.router.module") version "1.0.0"
+    id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
+}
+
+kotlin {
+    sourceSets {
+        commonMain {
+            dependencies {
+                // 使用 api 暴露运行时库，宿主才能聚合本模块及其传递依赖的索引。
+                api("io.github.limuyang2:router:1.0.0")
+            }
+        }
+    }
+}
+
+// KSP 按 target / compilation 配置，这里以 Android 和 iOS 为例；纯 JVM 模块可直接使用 ksp(...)。
+dependencies {
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.0.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.0.0")
+}
+
+// 可选：覆盖默认 moduleId（默认取 group:name）。
+router {
+    moduleId.set("com.example:feature-help")
+}
+```
+
+### 3. 宿主模块
+
+```kotlin
+plugins {
+    id("io.github.limuyang2.router") version "1.0.0"
+    id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
+}
+
+dependencies {
+    implementation(project(":feature-product"))
+    implementation("io.github.limuyang2:router:1.0.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.0.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.0.0")
+}
+
+// 聚合当前编译依赖的模块索引，生成 RouterAggregatedRegistry。
+router {
+    registryPackage.set("com.example.app.generated")
+    registryName.set("RouterAggregatedRegistry")
+}
+```
+
+宿主插件包含业务模块插件的能力，单模块项目只需应用宿主插件。宿主按实际编译依赖选择索引，规则见[多模块注册](#多模块注册)。
 
 ## 快速开始
 
