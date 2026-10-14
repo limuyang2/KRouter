@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jvm:
+    name: JVM tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Runtime regression tests
+        run: ./gradlew :lib_router:jvmTest
+
+      - name: Demo registration / parameter / result tests
+        run: ./gradlew :composeApp:jvmTest
+
+      - name: Gradle plugin TestKit tests
+        run: ./gradlew :router-gradle-plugin:test
+
+  web:
+    name: Web tests (JS + Wasm)
+    runs-on: ubuntu-latest
+    env:
+      CHROME_BIN: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # composeApp/src/webTest 在 JS 与 Wasm 两个 target 下经 Karma + 无头 Chrome 运行。
+      - name: Browser tests
+        run: ./gradlew :composeApp:jsBrowserTest :composeApp:wasmJsBrowserTest
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # ubuntu 镜像自带 Android SDK 且许可已接受，AGP 会自动补齐缺失的 platform。
+      - name: Compile Android runtime
+        run: ./gradlew :lib_router:compileAndroidMain
+
+      - name: Assemble demo APK (covers composeApp Android KSP + aggregation)
+        run: ./gradlew :androidApp:assembleDebug
+
+      - name: Compile instrumented tests
+        run: ./gradlew :androidApp:assembleDebugAndroidTest
+
+  ios:
+    name: iOS compile
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Compile iOS targets
+        run: >
+          ./gradlew
+          :lib_router:compileKotlinIosArm64
+          :lib_router:compileKotlinIosSimulatorArm64
+          :composeApp:compileKotlinIosArm64
+          :composeApp:compileKotlinIosSimulatorArm64
