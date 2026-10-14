@@ -1,5 +1,7 @@
 # KRouter
 
+中文 | [English](README_EN.md)
+
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
 **项目状态：已发布 [1.0.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）。**
