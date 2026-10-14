@@ -42,7 +42,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "library-router"
+rootProject.name = "KRouter"
 include(":androidApp")
 include(":composeApp")
 include(":lib_router")
