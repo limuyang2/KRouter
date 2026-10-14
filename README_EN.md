@@ -1,5 +1,7 @@
 # KRouter
 
+[![Context7](https://img.shields.io/badge/Context7-AI-5D5FEC.svg)](https://context7.com/limuyang2/krouter)
+
 [中文](README.md) | English
 
 A routing library for Kotlin Multiplatform and Compose Navigation 3. Through annotations, KSP, and Gradle module aggregation, it brings URLs, page instances, parameter injection, interceptors, and result delivery into a single navigation API.
@@ -25,6 +27,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 ## Contents
 
 - [Installation](#installation)
+- [AI assistance](#ai-assistance)
 - [Quick start](#quick-start)
 - [Routes and parameters](#routes-and-parameters)
 - [Navigation and back](#navigation-and-back)
@@ -122,6 +125,10 @@ router {
 ```
 
 The host plugin includes the feature-module plugin's capabilities, so a single-module project only needs the host plugin. The host selects indices from its actual compile dependencies — see [multi-module registration](#multi-module-registration).
+
+## AI assistance
+
+KRouter's documentation is indexed on [Context7](https://context7.com/limuyang2/krouter). In AI coding assistants with the Context7 MCP integrated — Cursor, Claude Code, Codex, and others — type `use context7` before asking (e.g. "How do I receive a page result with KRouter?"), and the assistant answers from this library's latest documentation instead of guessing the API from memory.
 
 ## Quick start
 

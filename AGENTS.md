@@ -42,4 +42,4 @@ Use Conventional Commits, typically Chinese subjects: `fix(router): 修复返回
 
 ## Configuration & Agent Guidance
 
-Keep credentials in local properties or environment variables; never add secrets to tracked files. For library APIs, use Context7: resolve the library ID, then query documentation. Skip it for reviews and business logic.
+Keep credentials in local properties or environment variables; never add secrets to tracked files. For library APIs, use Context7: resolve the library ID, then query documentation — KRouter itself is indexed as `/limuyang2/krouter`. Skip it for reviews and business logic.

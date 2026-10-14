@@ -1,5 +1,7 @@
 # KRouter
 
+[![Context7](https://img.shields.io/badge/Context7-AI-5D5FEC.svg)](https://context7.com/limuyang2/krouter)
+
 中文 | [English](README_EN.md)
 
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
@@ -25,6 +27,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 ## 目录
 
 - [安装](#安装)
+- [AI 辅助](#ai-辅助)
 - [快速开始](#快速开始)
 - [路由与参数](#路由与参数)
 - [导航与返回](#导航与返回)
@@ -120,6 +123,10 @@ router {
 ```
 
 宿主插件包含业务模块插件的能力，单模块项目只需应用宿主插件。宿主按实际编译依赖选择索引，规则见[多模块注册](#多模块注册)。
+
+## AI 辅助
+
+KRouter 的文档已收录到 [Context7](https://context7.com/limuyang2/krouter)。在 Cursor、Claude Code、Codex 等集成了 Context7 MCP 的 AI 编程助手中，输入 `use context7` 后再提问（例如“如何用 KRouter 接收页面返回结果”），助手会基于本库最新文档回答，而不是凭记忆猜测 API。
 
 ## 快速开始
 
