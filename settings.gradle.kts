@@ -12,10 +12,6 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
 
-//        maven("https://maven.aliyun.com/repository/gradle-plugin")
-//        maven("https://maven.aliyun.com/repository/public")
-//        maven("https://maven.aliyun.com/repository/central")
-//        maven("https://maven.aliyun.com/repository/google")
     }
 }
 plugins {
@@ -27,18 +23,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-
-//        maven("https://maven.aliyun.com/repository/public")
-//        maven("https://maven.aliyun.com/repository/central")
-//        maven("https://maven.aliyun.com/repository/google")
-
-        maven {
-            url = uri("https://nexus.qimingdaren.com/repository/android/")
-            credentials {
-                username = "android"
-                password = "qimingdaren@android-dev-Ov60c27T"
-            }
-        }
     }
 }
 
