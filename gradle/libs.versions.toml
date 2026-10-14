@@ -1,5 +1,5 @@
 [versions]
-annotation = "1.10.0"
+annotation = "1.11.0"
 ksp = "2.3.10"
 agp = "9.4.1"
 kotlin = "2.4.21"
@@ -19,7 +19,7 @@ kotlinCoroutines = "1.11.0"
 navigationevent = "1.1.2"
 material3 = "1.4.0"
 
-appcompat = "1.7.1"
+appcompat = "1.8.0"
 
 [libraries]
 kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinCoroutines" }
