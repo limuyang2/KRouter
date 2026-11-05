@@ -2,6 +2,7 @@
 annotation = "1.11.0"
 ksp = "2.3.13"
 agp = "9.5.0"
+gson = "2.15.0"
 kotlin = "2.4.21"
 composeMultiplatform = "1.12.2"
 composeMaterial3Multiplatform = "1.11.0-alpha07"
@@ -55,7 +56,11 @@ androidx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.li
 material = { group = "com.google.android.material", name = "material", version = "1.14.0" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
-
+ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
+ksp-gradle-plugin = { module = "com.google.devtools.ksp:symbol-processing-gradle-plugin", version.ref = "ksp" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp" }
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 
 androidx-navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "navigationevent" }
 

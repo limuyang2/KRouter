@@ -11,8 +11,8 @@ java {
 }
 
 dependencies {
-    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.13")
-    implementation("com.google.code.gson:gson:2.15.0")
+    implementation(libs.ksp.symbol.processing.api)
+    implementation(libs.gson)
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
 }
 
