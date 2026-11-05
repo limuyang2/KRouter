@@ -23,14 +23,14 @@ java {
 val functionalPlugins = configurations.create("functionalPlugins")
 
 dependencies {
-    implementation("com.android.tools.build:gradle-api:9.2.1")
+    implementation("com.android.tools.build:gradle-api:9.5.0")
     implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0")
-    compileOnly("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.10")
-    implementation("com.google.code.gson:gson:2.11.0")
+    compileOnly("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.13")
+    implementation("com.google.code.gson:gson:2.15.0")
     testImplementation(gradleTestKit())
     testImplementation("junit:junit:4.13.2")
-    functionalPlugins("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.10")
-    functionalPlugins("com.android.tools.build:gradle:9.2.1")
+    functionalPlugins("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.13")
+    functionalPlugins("com.android.tools.build:gradle:9.5.0")
 }
 
 tasks.pluginUnderTestMetadata {

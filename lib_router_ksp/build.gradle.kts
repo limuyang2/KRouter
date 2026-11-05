@@ -11,11 +11,9 @@ java {
 }
 
 dependencies {
-    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.10")
-    implementation("com.google.code.gson:gson:2.14.0")
-//    implementation("com.squareup:kotlinpoet:2.2.0")
+    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.13")
+    implementation("com.google.code.gson:gson:2.15.0")
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
-//    implementation(kotlin("reflect"))
 }
 
 kotlin.sourceSets.named("main") {
