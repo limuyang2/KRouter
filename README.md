@@ -467,6 +467,7 @@ import io.github.limuyang2.router.IRouterPushInterceptor
 import io.github.limuyang2.router.PushResponse
 import io.github.limuyang2.router.anno.RouterGlobalPushInterceptor
 
+// priority 数值越小优先级越高、越先执行（默认值为 10）
 @RouterGlobalPushInterceptor(priority = 1)
 class SourcePushInterceptor : IRouterPushInterceptor {
     override suspend fun intercept(
@@ -491,6 +492,7 @@ import io.github.limuyang2.router.IRouterPopInterceptor
 import io.github.limuyang2.router.PopResponse
 import io.github.limuyang2.router.anno.RouterGlobalPopInterceptor
 
+// priority 数值越小优先级越高、越先执行（默认值为 10）
 @RouterGlobalPopInterceptor(priority = 1)
 class AuditPopInterceptor : IRouterPopInterceptor {
     override suspend fun intercept(
