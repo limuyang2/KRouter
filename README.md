@@ -49,7 +49,7 @@ KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.gi
 | 宿主插件 | [io.github.limuyang2.router](https://central.sonatype.com/artifact/io.github.limuyang2.router/io.github.limuyang2.router.gradle.plugin) | 聚合依赖索引，生成 `RouterAggregatedRegistry`。 |
 | 业务模块插件 | [io.github.limuyang2.router.module](https://central.sonatype.com/artifact/io.github.limuyang2.router.module/io.github.limuyang2.router.module.gradle.plugin) | 生成模块索引。两个插件共用 [router-gradle-plugin](https://central.sonatype.com/artifact/io.github.limuyang2/router-gradle-plugin) 实现。 |
 
-环境要求：JDK 21；Android 目标 compileSdk 37、minSdk 26；需另行应用与 Kotlin 版本匹配的 KSP 插件（仓库使用 Kotlin 2.4.21 + KSP 2.3.10）。
+环境要求：JDK 21；Android 目标 compileSdk 37、minSdk 26；需另行应用与 Kotlin 版本匹配的 KSP 插件（仓库使用 Kotlin 2.4.21 + KSP 2.3.13）。
 
 ### 1. 配置仓库
 
@@ -465,7 +465,9 @@ fun openEditor(
 ```kotlin
 import io.github.limuyang2.router.IRouterPushInterceptor
 import io.github.limuyang2.router.PushResponse
+import io.github.limuyang2.router.anno.RouterGlobalPushInterceptor
 
+@RouterGlobalPushInterceptor(priority = 1)
 class SourcePushInterceptor : IRouterPushInterceptor {
     override suspend fun intercept(
         chain: IRouterPushInterceptor.Chain,
@@ -487,7 +489,9 @@ Push 改写目标类型后会重新执行适用的拦截器链。调用 `chain.i
 ```kotlin
 import io.github.limuyang2.router.IRouterPopInterceptor
 import io.github.limuyang2.router.PopResponse
+import io.github.limuyang2.router.anno.RouterGlobalPopInterceptor
 
+@RouterGlobalPopInterceptor(priority = 1)
 class AuditPopInterceptor : IRouterPopInterceptor {
     override suspend fun intercept(
         chain: IRouterPopInterceptor.Chain,

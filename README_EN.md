@@ -49,7 +49,7 @@ KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io
 | Host plugin | [io.github.limuyang2.router](https://central.sonatype.com/artifact/io.github.limuyang2.router/io.github.limuyang2.router.gradle.plugin) | Aggregates dependency indices and generates `RouterAggregatedRegistry`. |
 | Feature-module plugin | [io.github.limuyang2.router.module](https://central.sonatype.com/artifact/io.github.limuyang2.router.module/io.github.limuyang2.router.module.gradle.plugin) | Produces module indices. Both plugins share the [router-gradle-plugin](https://central.sonatype.com/artifact/io.github.limuyang2/router-gradle-plugin) implementation. |
 
-Requirements: JDK 21; Android targets need compileSdk 37 and minSdk 26; apply a KSP plugin matching your Kotlin version (this repository uses Kotlin 2.4.21 + KSP 2.3.10).
+Requirements: JDK 21; Android targets need compileSdk 37 and minSdk 26; apply a KSP plugin matching your Kotlin version (this repository uses Kotlin 2.4.21 + KSP 2.3.13).
 
 ### 1. Configure repositories
 
@@ -467,7 +467,9 @@ Such callbacks do not swap closures on recomposition or recreation; the caller m
 ```kotlin
 import io.github.limuyang2.router.IRouterPushInterceptor
 import io.github.limuyang2.router.PushResponse
+import io.github.limuyang2.router.anno.RouterGlobalPushInterceptor
 
+@RouterGlobalPushInterceptor(priority = 1)
 class SourcePushInterceptor : IRouterPushInterceptor {
     override suspend fun intercept(
         chain: IRouterPushInterceptor.Chain,
@@ -489,7 +491,9 @@ When a Push interceptor rewrites the target type, the applicable interceptor cha
 ```kotlin
 import io.github.limuyang2.router.IRouterPopInterceptor
 import io.github.limuyang2.router.PopResponse
+import io.github.limuyang2.router.anno.RouterGlobalPopInterceptor
 
+@RouterGlobalPopInterceptor(priority = 1)
 class AuditPopInterceptor : IRouterPopInterceptor {
     override suspend fun intercept(
         chain: IRouterPopInterceptor.Chain,
