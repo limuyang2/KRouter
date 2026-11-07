@@ -328,18 +328,41 @@ class RouterKspFunctionalTest {
                     else implementation(project(':${if (name == "host") "feature" else "api"}'))
                     ksp(project(':processor'))
                 }
-                router { registryPackage.set('sample'); registryName.set('AllRoutes') }
-                ${if (name == "feature") "afterEvaluate { publishing { publications { lib(MavenPublication) { from components.demoDebug } }; repositories { maven { url=rootProject.layout.projectDirectory.dir('repo') } } } }" else ""}
+                router { registryPackage.set('sample'); registryName.set('AllRoutes')
+                    if (providers.gradleProperty('ideOff').isPresent()) registerIdeSources.set(false) }
+                ${if (name == "feature") "afterEvaluate { publishing { publications { lib(MavenPublication) { from components.demoDebug } }; repositories { maven { url=rootProject.layout.projectDirectory.dir('repo') } } } }" else """
+                    def ideStaticDirs = []
+                    androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+                        if (variant.name == 'demoDebug') ideStaticDirs = variant.sources.kotlin?.static?.get()*.asFile ?: []
+                    }
+                    tasks.register('verifyRouterIdeModel') {
+                        doLast {
+                            def aggregatePath = layout.buildDirectory.dir('generated/routerAggregate/demoDebug/kotlin').get().asFile.toPath()
+                            def enabled = !providers.gradleProperty('ideOff').isPresent()
+                            assert enabled == ideStaticDirs.any { it.toPath() == aggregatePath } : 'static kotlin sources: ' + ideStaticDirs
+                            // AGP feeds variant sources to KSP, so the unannotated aggregate joins KSP's
+                            // inputs. Static registration must never add the reverse task edge.
+                            def kspTask = tasks.getByName('kspDemoDebugKotlin')
+                            assert !kspTask.taskDependencies.getDependencies(kspTask).contains(tasks.getByName('generateDemoDebugRouterAggregate'))
+                        }
+                    }
+                """}
             """.trimIndent())
             File(root, "$name/src/main/AndroidManifest.xml").apply {
                 parentFile.mkdirs(); writeText("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"><application /></manifest>")
             }
         }
-        val result = run(root, ":host:assembleDemoDebug")
-        assertFalse(result.output.contains("More than one file was found with OS independent path 'META-INF/io.github.limuyang2.router/"))
+        val result = run(root, ":host:assembleDemoDebug", ":host:verifyRouterIdeModel")
+        assertFalse(result.output.contains("More than one file was found with OS independent path 'META-INF/io.github.limuyang2.router/ "))
         assertNotNull(result.task(":feature:prepareDemoDebugRouterIndex"))
         assertNull(result.task(":feature:prepareFullDebugRouterIndex"))
         assertTrue(File(root, "host/build/generated/routerAggregate/demoDebug/kotlin/sample/AllRoutes.kt").readText().contains("ModuleRouterRegistry"))
+        run(root, ":host:verifyRouterIdeModel", "-PideOff=true")
+        // The aggregate file joins KSP's source snapshot on the next build; reruns must stay stable.
+        run(root, ":host:assembleDemoDebug")
+        val settled = run(root, ":host:assembleDemoDebug")
+        assertEquals(TaskOutcome.UP_TO_DATE, settled.task(":host:kspDemoDebugKotlin")?.outcome)
+        assertEquals(TaskOutcome.UP_TO_DATE, settled.task(":host:generateDemoDebugRouterAggregate")?.outcome)
         run(root, ":host:compileDemoStagingKotlin")
         run(root, ":api:publish", ":feature:publish")
         val published = run(root, ":host:compileDemoStagingKotlin", "-Pexternal=true")

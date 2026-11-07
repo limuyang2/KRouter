@@ -85,6 +85,7 @@ internal data class RouterCompilation(
     val runtime: Configuration?,
     val index: TaskProvider<PrepareRouterIndexTask>,
     val sourceSet: KotlinSourceSet?,
+    val androidVariant: Variant? = null,
 )
 
 @Suppress("DEPRECATION")
@@ -117,6 +118,7 @@ private fun Project.registerAndroidVariant(extension: RouterExtension, variant: 
         extension, name, "compile${name.capitalized()}Kotlin", "ksp${name.capitalized()}Kotlin",
         variant.compileConfiguration, variant.runtimeConfiguration,
         setOf("${name}ApiElements", "${name}RuntimeElements"),
+        androidVariant = variant,
     )
     // AGP uses separate publication configurations and deliberately strips single-variant
     // build-type/flavor attributes. Decorate each actual component's copies, preserving that model.
@@ -137,6 +139,7 @@ private fun Project.registerRouterCompilation(
     runtime: Configuration?,
     outgoing: Set<String>,
     sourceSet: KotlinSourceSet? = null,
+    androidVariant: Variant? = null,
 ): RouterCompilation {
     val index = tasks.register("prepare${unitName.capitalized()}RouterIndex", PrepareRouterIndexTask::class.java) {
         moduleId.set(extension.moduleId)
@@ -153,7 +156,7 @@ private fun Project.registerRouterCompilation(
     configurations.matching { it.name in outgoing }.all {
         RouterArtifacts.publish(project, this, index, unitName)
     }
-    val unit = RouterCompilation(unitName, compileName, compile, runtime, index, sourceSet)
+    val unit = RouterCompilation(unitName, compileName, compile, runtime, index, sourceSet, androidVariant)
     extension.units.add(unit)
     extension.aggregate?.invoke(unit)
     return unit

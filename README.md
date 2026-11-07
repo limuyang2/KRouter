@@ -119,6 +119,9 @@ dependencies {
 router {
     registryPackage.set("com.example.app.generated")
     registryName.set("RouterAggregatedRegistry")
+    // AGP 宿主默认开启：聚合目录注册为 static variant 源，Android Studio 可解析生成类。
+    // static 不携带任务依赖，不影响 KSP；冲突时可设为 false 退回仅编译接入。
+    // registerIdeSources.set(true)
 }
 ```
 
@@ -547,7 +550,7 @@ KRouter 使用显式模块索引和宿主聚合入口完成跨平台注册。
 - 宿主按实际依赖选择索引，不扫描无关子项目，菱形依赖中的同一模块只注册一次。
 - 生成的静态入口必须编译可见；宿主显式依赖业务模块，或通过中间模块的 `api` 暴露。
 - 模块 ID 冲突、索引损坏或协议不兼容在构建阶段报告。
-- 聚合输出按平台生成，不应加入 `commonMain` 或反向加入 KSP 输入。
+- 聚合输出按平台生成，不应加入 `commonMain` 或手动接入 KSP 输入；AGP 宿主由插件以 static 源登记（无任务依赖）。
 
 仓库示例为 `composeApp → 商品 / 账户 → 共享帮助`。商品和账户模块都通过 `api` 暴露帮助模块；宿主聚合四个模块入口，帮助模块只注册一次。
 

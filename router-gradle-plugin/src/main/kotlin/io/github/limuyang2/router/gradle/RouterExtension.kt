@@ -22,6 +22,14 @@ abstract class RouterExtension @Inject constructor(objects: ObjectFactory) {
     val registryName: Property<String> = objects.property(String::class.java)
         .convention("RouterAggregatedRegistry")
 
+    /**
+     * Whether AGP hosts also register the aggregate directory as a static variant Kotlin source so
+     * Android Studio resolves the generated registry. Static registration carries no task dependency,
+     * so KSP ordering is unaffected. Disable only to restore the compile-only wiring.
+     */
+    val registerIdeSources: Property<Boolean> = objects.property(Boolean::class.java)
+        .convention(true)
+
     internal val units = mutableListOf<RouterCompilation>()
     internal var aggregate: ((RouterCompilation) -> Unit)? = null
 }

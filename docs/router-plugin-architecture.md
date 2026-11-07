@@ -146,7 +146,7 @@ flowchart LR
     A --> HC
 ```
 
-禁止出现“宿主 KSP 依赖宿主聚合任务”的反向边。Kotlin JVM/KMP（含 Android KMP 和 iOS）通过 KGP 2.4 的 `compilation.defaultSourceSet.generatedKotlin` 登记聚合输出，让 IDE 和编译器都能识别；目录不加入 KSP 2.3.10 读取的 `sourceSet.kotlin`。普通 AGP Application/Library variant 保留编译任务接入，因为其 variant 源码目录也会成为 KSP 输入。回归测试覆盖首次编译、源码模型、KSP 输入与任务依赖，以及聚合入口改名后 KSP 保持 UP-TO-DATE。
+禁止出现“宿主 KSP 依赖宿主聚合任务”的反向边。Kotlin JVM/KMP（含 Android KMP 和 iOS）通过 KGP 2.4 的 `compilation.defaultSourceSet.generatedKotlin` 登记聚合输出，让 IDE 和编译器都能识别；目录不加入 KSP 2.3.10 读取的 `sourceSet.kotlin`。普通 AGP Application/Library variant 保留编译任务接入（排序与编译输入以 `dependsOn` + `source()` 为准），并把聚合目录额外登记为 *static* variant Kotlin 源，使 Android Studio 能解析生成入口：static 不携带任务依赖，因此不会形成 KSP 到聚合任务的反向边；AGP 会把 variant 源交给 KSP，聚合文件无注解、KSP 零输出，实测连续构建收敛（KSP 与聚合任务均 UP-TO-DATE）。`router.registerIdeSources = false` 可退回仅编译任务接入。回归测试覆盖首次编译、源码模型、任务依赖、开关行为与稳定收敛，以及聚合入口改名后 KSP 保持 UP-TO-DATE。
 
 ## 8. 聚合任务与缓存
 

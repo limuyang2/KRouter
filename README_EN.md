@@ -121,6 +121,10 @@ dependencies {
 router {
     registryPackage.set("com.example.app.generated")
     registryName.set("RouterAggregatedRegistry")
+    // On by default for AGP hosts: the aggregate directory is registered as a static variant
+    // source so Android Studio resolves the generated class. Static adds no task dependency
+    // and never affects KSP; set it to false to fall back to compile-only wiring.
+    // registerIdeSources.set(true)
 }
 ```
 
@@ -549,7 +553,7 @@ Configure the KSP processor for each production target / compilation. The host g
 - The host selects indices from actual dependencies without scanning unrelated subprojects; a module appearing through a diamond dependency registers only once.
 - Generated static entry points must be visible at compile time; the host depends on feature modules explicitly, or they are exposed through an intermediate module's `api`.
 - Module ID conflicts, corrupt indices, or protocol incompatibilities are reported at build time.
-- Aggregate output is generated per platform and must not be added to `commonMain` or fed back into KSP inputs.
+- Aggregate output are generated per platform and must not be added to `commonMain` or wired into KSP inputs manually; on AGP hosts the plugin registers them as static sources (no task dependency).
 
 The in-repo example is `composeApp → product / account → shared help`. The product and account modules both expose the help module via `api`; the host aggregates four module entry points, and the help module registers only once.
 
