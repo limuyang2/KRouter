@@ -499,6 +499,10 @@ class RouterKspFunctionalTest {
     private fun fixture(lateRoutes: Boolean): File {
         val root = temporary.newFolder()
         val repository = File(System.getProperty("user.dir")).parentFile
+        val kspVersion = Regex("""^ksp = "([^"]+)"$""", RegexOption.MULTILINE)
+            .find(File(repository, "gradle/libs.versions.toml").readText())
+            ?.groupValues?.get(1)
+            ?: error("KSP version is missing from gradle/libs.versions.toml")
         fun write(path: String, value: String) {
             File(root, path).apply { parentFile.mkdirs(); writeText(value.trimIndent()) }
         }
@@ -520,7 +524,7 @@ class RouterKspFunctionalTest {
             kotlin { jvmToolchain(21) }
             kotlin.sourceSets.main.kotlin.srcDirs('${repository.resolve("lib_router_ksp/src/main/java").invariantSeparatorsPath}', '${repository.resolve("router-index-protocol/src/main/kotlin").invariantSeparatorsPath}')
             dependencies {
-                implementation('com.google.devtools.ksp:symbol-processing-api:2.3.10')
+                implementation('com.google.devtools.ksp:symbol-processing-api:$kspVersion')
                 implementation('com.google.code.gson:gson:2.11.0')
                 implementation('org.apache.httpcomponents:httpclient:4.5.14')
             }
