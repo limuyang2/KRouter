@@ -165,7 +165,7 @@ internal class RouteProcessor(
                 }
 
                 // path 不为空，才有url路由
-                if (!path.isBlank()) {
+                if (path.isNotBlank()) {
 
                     // 没有 host 的情况下，读取 gradle 中 ksp 的配置
                     if (host.isBlank()) {
