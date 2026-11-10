@@ -20,7 +20,7 @@ internal class OwnerPushInterceptorProcessor(
         logger.info("RouteProcessor: start process: $routerAnnotationName")
 
         val symbols = resolver.getSymbolsWithAnnotation(routerAnnotationName, false)
-        val (valid, invalid) = symbols.partition { it.validate() }
+        val (valid, invalid) = symbols.partition { it.validate(enableNewFeatures = true) }
         val validSymbols = valid.filterIsInstance<KSClassDeclaration>()
 
         val annotationKSType =

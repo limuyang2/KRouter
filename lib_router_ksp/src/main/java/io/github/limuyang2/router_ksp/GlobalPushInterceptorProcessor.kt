@@ -28,7 +28,7 @@ internal class GlobalPushInterceptorProcessor(
         val symbols = resolver.getSymbolsWithAnnotation(routerAnnotationName, false)
 
         // 分离 Valid 和 Invalid
-        val (valid, invalid) = symbols.partition { it.validate() }
+        val (valid, invalid) = symbols.partition { it.validate(enableNewFeatures = true) }
 
         // 从有效符号中筛选出类声明
         val validSymbols = valid.filterIsInstance<KSClassDeclaration>()

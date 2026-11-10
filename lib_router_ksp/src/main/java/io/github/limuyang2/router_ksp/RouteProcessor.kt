@@ -42,7 +42,7 @@ internal class RouteProcessor(
         val validSymbols = mutableListOf<KSClassDeclaration>()
 
         symbols.forEach {
-            if (!it.validate()) {
+            if (!it.validate(enableNewFeatures = true)) {
                 invalidSymbols.add(it)
             } else if (it is KSClassDeclaration) {
                 validSymbols.add(it)
