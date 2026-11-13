@@ -30,6 +30,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 - [安装](#安装)
 - [AI 辅助](#ai-辅助)
 - [快速开始](#快速开始)
+- [场景布局](#场景布局)
 - [路由与参数](#路由与参数)
 - [导航与返回](#导航与返回)
 - [结果回传](#结果回传)
@@ -214,6 +215,8 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.DialogSceneStrategy
+import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import io.github.limuyang2.router.LocalNavigator
 import io.github.limuyang2.router.Navigator
@@ -222,11 +225,18 @@ import io.github.limuyang2.router.rememberRouteResultNavEntryDecorator
 @Composable
 fun App() {
     val navigator = remember { Navigator(HomeRoute()) }
+    val sceneStrategies = remember {
+        listOf(
+            DialogSceneStrategy<Any>(),
+            SinglePaneSceneStrategy<Any>(),
+        )
+    }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
         NavDisplay(
             backStack = navigator.backStack,
             onBack = { navigator.pop() },
+            sceneStrategies = sceneStrategies,
             entryDecorators = listOf(
                 rememberRouteResultNavEntryDecorator(),
                 rememberSaveableStateHolderNavEntryDecorator(),
@@ -245,6 +255,48 @@ fun App() {
 `LocalNavigator` 提供当前导航器。`rememberRouteResultNavEntryDecorator()` 为页面提供结果接收上下文；使用 `rememberRouteResult` 时必须安装它。其余 decorators 分别处理可保存的页面状态与页面级 ViewModel。
 
 完整宿主示例见 [RouterApp.kt](composeApp/src/commonMain/kotlin/io/github/limuyang2/router/demo/RouterApp.kt)。
+
+## 场景布局
+
+`SceneStrategy` 是 Navigation 3 的布局决策 API，用于决定当前返回栈中的页面如何组成一个可显示的 `Scene`。它只影响展示方式，不改变 `navigator.backStack` 本身。
+
+如果没有特殊布局需求，可以不传 `sceneStrategies`，`NavDisplay` 会退回为单页显示；也可以只显式配置单页策略：
+
+```kotlin
+val sceneStrategies = remember { listOf(SinglePaneSceneStrategy<Any>()) }
+```
+
+多个策略会按列表顺序尝试。某个策略能处理当前返回栈时返回 `Scene`，后续策略不再生效；不能处理时返回 `null`，机会交给下一个策略。自定义策略通常用于双栏、对话框等特殊布局：
+
+```kotlin
+class CustomSceneStrategy<T : Any> : SceneStrategy<T> {
+    override fun SceneStrategyScope<T>.calculateScene(
+        entries: List<NavEntry<T>>,
+    ): Scene<T>? {
+        return null
+    }
+}
+```
+
+覆盖形态由路由自己声明。KSP 生成的 `entry(...)` 会把 `IRouterEntryProvider.metadata()` 传给 Navigation 3；路由重写该方法，并让宿主安装对应的覆盖策略。例如 Dialog 覆盖层应把 `DialogSceneStrategy` 放在单页策略之前：
+
+```kotlin
+import androidx.navigation3.scene.DialogSceneStrategy
+
+@Router(scheme = "demo", host = "app", path = "/dialog")
+class DialogRoute : IRouterEntryProvider {
+    override fun metadata() = DialogSceneStrategy.dialog()
+
+    @Composable
+    override fun UI() {
+        DialogPage()
+    }
+}
+```
+
+`DialogSceneStrategy.dialog()` 返回带覆盖标记的 metadata，只描述该路由在 `NavDisplay` 中的展示形态，不改变路由 URL、实例身份或返回栈操作。普通路由默认返回空 metadata，仍由后面的 `SinglePaneSceneStrategy` 或 `NavDisplay` 的默认单页布局处理。
+
+创建 `Scene` 时需要提供稳定的 `key`、参与显示的 `entries`、执行返回时要保留的 `previousEntries`，以及组合式 `content`。自定义 `Scene` 的 `previousEntries` 决定系统返回手势或返回事件移除哪些页面，应与实际交互预期保持一致。
 
 ## 路由与参数
 

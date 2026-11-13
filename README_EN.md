@@ -30,6 +30,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 - [Installation](#installation)
 - [AI assistance](#ai-assistance)
 - [Quick start](#quick-start)
+- [Scene layouts](#scene-layouts)
 - [Routes and parameters](#routes-and-parameters)
 - [Navigation and back](#navigation-and-back)
 - [Result delivery](#result-delivery)
@@ -217,6 +218,8 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.DialogSceneStrategy
+import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import io.github.limuyang2.router.LocalNavigator
 import io.github.limuyang2.router.Navigator
@@ -225,11 +228,18 @@ import io.github.limuyang2.router.rememberRouteResultNavEntryDecorator
 @Composable
 fun App() {
     val navigator = remember { Navigator(HomeRoute()) }
+    val sceneStrategies = remember {
+        listOf(
+            DialogSceneStrategy<Any>(),
+            SinglePaneSceneStrategy<Any>(),
+        )
+    }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
         NavDisplay(
             backStack = navigator.backStack,
             onBack = { navigator.pop() },
+            sceneStrategies = sceneStrategies,
             entryDecorators = listOf(
                 rememberRouteResultNavEntryDecorator(),
                 rememberSaveableStateHolderNavEntryDecorator(),
@@ -248,6 +258,48 @@ fun App() {
 `LocalNavigator` provides the current navigator. `rememberRouteResultNavEntryDecorator()` provides the result-receiving context for pages; it must be installed when using `rememberRouteResult`. The remaining decorators handle saveable page state and page-scoped ViewModels respectively.
 
 See [RouterApp.kt](composeApp/src/commonMain/kotlin/io/github/limuyang2/router/demo/RouterApp.kt) for the complete host example.
+
+## Scene layouts
+
+`SceneStrategy` is Navigation 3's layout-decision API. It determines how pages in the current back stack form a displayable `Scene`; it does not modify `navigator.backStack` itself.
+
+For a standard single-page layout, `sceneStrategies` can be omitted because `NavDisplay` falls back to single-pane display. Alternatively, configure only the single-pane strategy explicitly:
+
+```kotlin
+val sceneStrategies = remember { listOf(SinglePaneSceneStrategy<Any>()) }
+```
+
+Multiple strategies are tried in list order. When a strategy can handle the current back stack, it returns a `Scene` and later strategies are skipped. When it cannot, it returns `null` and passes the opportunity to the next strategy. Custom strategies are typically used for layouts such as two panes or dialogs:
+
+```kotlin
+class CustomSceneStrategy<T : Any> : SceneStrategy<T> {
+    override fun SceneStrategyScope<T>.calculateScene(
+        entries: List<NavEntry<T>>,
+    ): Scene<T>? {
+        return null
+    }
+}
+```
+
+An overlay presentation is declared by the route itself. The generated `entry(...)` forwards `IRouterEntryProvider.metadata()` to Navigation 3; override that method on the route and install the matching overlay strategy in the host. For a dialog overlay, place `DialogSceneStrategy` before the single-pane strategy:
+
+```kotlin
+import androidx.navigation3.scene.DialogSceneStrategy
+
+@Router(scheme = "demo", host = "app", path = "/dialog")
+class DialogRoute : IRouterEntryProvider {
+    override fun metadata() = DialogSceneStrategy.dialog()
+
+    @Composable
+    override fun UI() {
+        DialogPage()
+    }
+}
+```
+
+`DialogSceneStrategy.dialog()` returns metadata with the overlay marker. It only describes how that route is presented by `NavDisplay`; it does not change the route URL, instance identity, or back-stack operations. Ordinary routes default to empty metadata and remain handled by the later `SinglePaneSceneStrategy` or `NavDisplay`'s default single-pane layout.
+
+When creating a `Scene`, provide a stable `key`, the `entries` shown, the `previousEntries` retained when back is invoked, and composable `content`. A custom scene's `previousEntries` determine which pages system back gestures or back events remove, so keep them consistent with the intended interaction.
 
 ## Routes and parameters
 
