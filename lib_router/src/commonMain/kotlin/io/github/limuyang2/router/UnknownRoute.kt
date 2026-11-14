@@ -18,10 +18,3 @@ data class UnknownRoute(
     val objClazz: KClass<*>? = null,
     val uri: RouteUri? = null
 ) : IRouterEntryProvider
-
-/**
- * 导航栈初始占位路由。
- *
- * Initial placeholder entry for the navigation back stack.
- */
-internal object InitRoute : IRouterEntryProvider

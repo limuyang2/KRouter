@@ -43,7 +43,7 @@ internal class Core(startDestination: Any) :
         internal val aliasesKV: MutableMap<String, KClass<*>> = HashMap()
     }
 
-    internal val mBackStack: SnapshotStateList<IRouterEntryProvider> = mutableStateListOf(InitRoute)
+    internal val mBackStack: SnapshotStateList<IRouterEntryProvider> = mutableStateListOf()
 
     private val globalPushInterceptors: List<IRouterPushInterceptor>
     private val globalPopInterceptors: List<IRouterPopInterceptor>
@@ -78,15 +78,44 @@ internal class Core(startDestination: Any) :
             .sortedBy { it.priority }
             .map { it.interceptor }
 
-        push {
-            isCleanStack = true
-            if (startDestination is String) {
-                url = startDestination
-            } else {
-                @Suppress("UNCHECKED_CAST")
-                destination = startDestination as IRouterEntryProvider
+        // 初始路由同步种入栈底，保证首次组合读取 backStack 前页面已就位。
+        mBackStack.add(resolveStartEntry(startDestination))
+    }
+
+    /**
+     * 同步解析初始路由。
+     *
+     * 初始栈在构造期间就要就位：首帧组合读取 backStack 前若只有占位页，启动时会闪一下空白。
+     * 初始状态不是一次跳转，因此不经过 push 拦截器；需要按条件决定初始页（如登录门禁）时，
+     * 由调用方在构造 Navigator 前自行选择 startDestination。
+     * 解析失败时入栈 [UnknownRoute]，让错误显式可见，而不是停留在空白占位页。
+     *
+     * Resolves the start destination synchronously. The initial stack must be ready before the
+     * first composition reads it, otherwise a blank placeholder flashes at startup. The initial
+     * state is not a navigation, so push interceptors do not apply; conditional start pages
+     * (e.g. a login gate) should be chosen by the caller before constructing the Navigator.
+     * Failures seed [UnknownRoute] so the error is visible instead of a blank placeholder.
+     */
+    private fun resolveStartEntry(startDestination: Any): IRouterEntryProvider {
+        if (startDestination is IRouterEntryProvider) return startDestination
+
+        if (startDestination is String) {
+            val uri = startDestination.toUriOrNull()
+            if (uri == null) {
+                logE { "初始路由解析失败，url 非法：[$startDestination]" }
+                return UnknownRoute()
             }
+            val cleanUri = uri.buildUpon().clearQuery().build()
+            val routerInfo = getRouterInfo(cleanUri)
+            if (routerInfo == null) {
+                logE { "初始路由未注册：[$cleanUri]" }
+                return UnknownRoute(uri = cleanUri)
+            }
+            return routerInfo.instanceProvider.instance(uri.getUriParamsMap())
         }
+
+        logE { "初始路由类型非法：[${startDestination::class.simpleName}]，仅支持 String 或 IRouterEntryProvider" }
+        return UnknownRoute()
     }
 
     val pageProviderInstaller

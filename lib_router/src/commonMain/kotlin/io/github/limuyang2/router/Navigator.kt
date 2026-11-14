@@ -8,17 +8,29 @@ import kotlin.reflect.KClass
 /**
  * 对外暴露的路由导航入口。
  *
+ * 初始路由在构造期间同步解析并种入栈底，不经过 push 拦截器，首帧组合读到的
+ * 就是真实页面、零初始化开销。必须在 [initRouter] 与 [registerModuleRouters] 之后构造，
+ * 否则 URL 初始路由解析不到模块注册；需要按条件决定初始页（如登录门禁）时，
+ * 请在构造前自行选择 startDestination。URL 解析失败时栈底是 [UnknownRoute]。
+ *
  * 结果回传统一使用 RouteResult 表达完整状态；Compose 页面可通过
  * `rememberRouteResult(...)` 创建 consumer token。
  *
- * Public navigation entry point. Results use [RouteResult]; Compose UI must receive them through
+ * Public navigation entry point. The start destination is resolved synchronously during
+ * construction and seeded as the stack root without push interceptors, so the first
+ * composition reads a real page with no initialization cost. Construct only after
+ * [initRouter] and [registerModuleRouters], otherwise a URL start destination resolves against
+ * an empty registry; choose the start destination before construction for conditional
+ * start pages (e.g. a login gate). An unresolvable URL seeds [UnknownRoute] as the root.
+ *
+ * Results use [RouteResult]; Compose UI must receive them through
  * a consumer token created by [rememberRouteResult]. Push and pop operations run asynchronously.
  *
  * @param startDestination 初始路由 URL 或页面实例 / Initial route URL or destination instance.
  */
 class Navigator(startDestination: Any) {
 
-    private val core by lazy { Core(startDestination) }
+    private val core = Core(startDestination)
 
     /**
      * 供 NavDisplay 观察；请通过 Navigator 修改栈，以保留实例限制和结果生命周期管理。
