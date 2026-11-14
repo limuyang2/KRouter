@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-14
+
+### 修复 / Fixed
+
+- **启动闪屏**：初始路由此前经异步 push 派发，栈底短暂为空白占位页，首帧组合可能渲染出占位/空白页后闪一下真实页面。现在初始路由在 `Navigator` 构造期间同步解析并种入栈底，首帧读到的就是真实页面。
+  - **Startup flash**: the start destination used to be dispatched through an asynchronous push, leaving a blank placeholder at the stack root; the first composition could render the placeholder before the real page flashed in. The start destination is now resolved synchronously and seeded during `Navigator` construction, so the first frame reads a real page.
+
+### 变更 / Changed
+
+- 初始路由是导航栈的初始状态而非一次跳转：不再经过 Push 拦截器，也不派发初始 `BackStackEvent.Push`。
+  - The start destination is the stack's initial state, not a navigation: it no longer goes through push interceptors and emits no initial `BackStackEvent.Push`.
+- `Navigator.core` 去掉懒加载：providers 聚合、索引合并与初始路由解析全部在构造期间完成，首帧组合零初始化开销，并免掉每次属性访问的同步锁。
+  - `Navigator.core` is no longer lazy: provider aggregation, index merging, and start-destination resolution all happen during construction, leaving zero initialization cost for the first composition and removing the synchronization lock on every property access.
+- 初始 URL 未注册或非法时，栈底为携带原始 URL 的 `UnknownRoute`（可由 fallback 页面展示），不再停留在空白占位页；传入非法类型从崩溃变为日志加 `UnknownRoute`。
+  - An unregistered or malformed start URL now seeds `UnknownRoute` carrying the original URL (renderable by a fallback page) instead of a blank placeholder; an invalid start-destination type logs and seeds `UnknownRoute` instead of crashing.
+
+### 升级说明 / Upgrade notes
+
+- **构造顺序成为硬约束**：必须在 `initRouter` 与模块注册完成之后构造 `Navigator`；此前依赖懒加载在注册前提前创建 `Navigator` 的工程需要调整顺序，违反时构造即刻失败（fail fast）。
+  - **Construction order is now a hard contract**: construct `Navigator` only after `initRouter` and module registration. Projects that relied on the lazy core to create a `Navigator` before registering modules must reorder; violations now fail fast at construction.
+- 原来通过全局 Push 拦截器重定向初始路由（如登录门禁）的用法不再生效，请改为构造前按条件选择 `startDestination`，或在初始页就位后显式跳转。
+  - Redirecting the start destination through a global push interceptor (e.g. a login gate) no longer applies; choose the `startDestination` conditionally before construction, or navigate explicitly once the initial page is in place.
+- 运行库、KSP 处理器、Gradle 插件三件套照常同版本升级。
+  - Upgrade the runtime, KSP processor, and Gradle plugin together as usual.
+
 ## [1.1.0] - 2026-11-07
 
 ### 修复 / Fixed

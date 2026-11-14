@@ -18,6 +18,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 ## 功能
 
 - **路由声明**：使用 `@Router` 声明页面，KSP 生成路由信息、实例工厂和页面注册代码。
+- **初始路由**：构造期间同步解析并种入栈底，首帧即真实页面，无启动闪屏，也不经过 Push 拦截器。
 - **跳转方式**：支持页面实例和 URL，使用 `@RouterParam` 注入构造参数及属性。
 - **结果回传**：区分成功、无结果、取消和类型不匹配；Compose 使用 Consumer 接收结果。
 - **返回控制**：关闭当前页、回退到指定页、移除匹配页、清栈及根页保护。
@@ -202,7 +203,7 @@ fun initializeNavigation() {
 
 在平台启动入口调用 `initializeNavigation()`，完成后再显示下文的 `App()`。
 
-`initRouter` 保留首次初始化的配置。未显式声明 scheme 的路由使用 `defaultScheme`，其默认值为 `"route"`。模块注册必须在初始化之后进行。
+`initRouter` 保留首次初始化的配置。未显式声明 scheme 的路由使用 `defaultScheme`，其默认值为 `"route"`。模块注册必须在初始化之后进行。`Navigator` 在构造期间同步解析初始路由并种入栈底，因此必须在初始化与模块注册完成之后创建；URL 解析失败时栈底为 `UnknownRoute`，可由 fallback 页面展示，不会停留在空白占位页。
 
 KMP 的聚合入口按 target 生成，`commonMain` 不能直接引用平台生成类。可以在各平台入口初始化，也可以通过 `expect/actual` 分发；仓库示例见 [DemoRuntime.kt](composeApp/src/commonMain/kotlin/io/github/limuyang2/router/demo/DemoRuntime.kt)。
 
@@ -540,6 +541,8 @@ class SourcePushInterceptor : IRouterPushInterceptor {
 页面可通过 `@Router(pushInterceptors = [...])` 绑定；全局拦截器通过 `@RouterGlobalPushInterceptor` 声明，Owner 外置绑定通过 `@RouterOwnerPushInterceptor` 声明。Pop 提供对应的注解。优先级数值越小越先执行，同一次操作先处理全局拦截器，再处理页面拦截器。
 
 Push 改写目标类型后会重新执行适用的拦截器链。调用 `chain.interrupt()` 可以中断跳转。
+
+初始路由是导航栈的初始状态而非一次跳转：`Navigator` 构造时同步种入栈底，不经过 Push 拦截器，也不派发 `BackStackEvent.Push`。需要按条件决定初始页（如登录门禁）时，应在构造前选择 `startDestination`，或在初始页就位后显式跳转。
 
 ### Pop：检查已绑定的页面
 

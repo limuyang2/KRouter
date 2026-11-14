@@ -18,6 +18,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 ## Features
 
 - **Route declaration**: Declare pages with `@Router`; KSP generates route metadata, instance factories, and page registration code.
+- **Start destination**: Resolved and seeded synchronously during construction — the first frame shows a real page with no startup flash and no push interceptors involved.
 - **Navigation**: Supports page instances and URLs; `@RouterParam` injects constructor parameters and properties.
 - **Result delivery**: Distinguishes success, no result, cancellation, and type mismatch; Compose receives results through a Consumer.
 - **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, with root-page protection.
@@ -205,7 +206,7 @@ The example uses the aggregation plugin's default package. If you change `router
 
 Call `initializeNavigation()` in each platform's launch entry, and only show the `App()` below afterwards.
 
-`initRouter` keeps the first initialization's configuration. Routes without an explicit scheme use `defaultScheme`, whose default value is `"route"`. Module registration must happen after initialization.
+`initRouter` keeps the first initialization's configuration. Routes without an explicit scheme use `defaultScheme`, whose default value is `"route"`. Module registration must happen after initialization. `Navigator` resolves its start destination synchronously during construction, so create it only after initialization and module registration; an unresolvable URL seeds `UnknownRoute` as the stack root — renderable by a fallback page — instead of a blank placeholder.
 
 The KMP aggregate entry point is generated per target, so `commonMain` cannot reference the platform-generated class directly. Initialize in each platform entry point, or dispatch through `expect/actual`; see [DemoRuntime.kt](composeApp/src/commonMain/kotlin/io/github/limuyang2/router/demo/DemoRuntime.kt) for the in-repo example.
 
@@ -543,6 +544,8 @@ class SourcePushInterceptor : IRouterPushInterceptor {
 Pages bind them via `@Router(pushInterceptors = [...])`; global interceptors are declared with `@RouterGlobalPushInterceptor`, owner-bound ones with `@RouterOwnerPushInterceptor`. Pop has corresponding annotations. Lower priority values run first; within one operation, global interceptors run before page interceptors.
 
 When a Push interceptor rewrites the target type, the applicable interceptor chain restarts. Call `chain.interrupt()` to abort the navigation.
+
+The start destination is the stack's initial state, not a navigation: `Navigator` seeds it synchronously during construction without push interceptors and without emitting `BackStackEvent.Push`. For a conditional start page (e.g. a login gate), choose the `startDestination` before construction, or navigate explicitly once the initial page is in place.
 
 ### Pop: inspect bound pages
 
