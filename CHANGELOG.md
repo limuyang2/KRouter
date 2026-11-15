@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
-## [Unreleased]
+## [1.3.1] - 2026-11-15
 
 ### 新增 / Added
 
