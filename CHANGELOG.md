@@ -6,17 +6,12 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
-## [Unreleased]
+## [1.3.1] - 2026-11-15
 
 ### 新增 / Added
 
 - **受保护页面（身份性根保护）**：`Navigator(start) { protect(...) }` 构造期声明 + `protect()/unprotect()` 运行期调整，指定类型无论在栈内哪个位置都不被移除操作带走。柱模型语义：pop/remove/all 目标选择将其剔除（空则操作无效），backTo/popUpTo/cleanStack 修剪穿透继续、仅其自身豁免保留原位，受保护页在栈顶时 pop 无效（同根页行为），isPopCurrent 目标撞上时降级为普通叠加；根页保护不变，是其在栈底时的特例。附带修复 removeAll 全命中保根判断在剔除受保护页后失效的问题（改为按非保护项计数判断）。
   - **Protected pages (identity-based root protection)**: declare at construction via `Navigator(start) { protect(...) }` and adjust at runtime with `protect()/unprotect()`; the declared classes are never removed from the stack regardless of position. Pillar semantics: pop/remove/all selections exclude them (an empty selection does nothing), backTo/popUpTo/cleanStack trims pass through while sparing them in place, a pop with a protected top does nothing (same as root), and an isPopCurrent targeting a protected page degrades to plain stacking. Root protection is unchanged and remains the stack-bottom special case. Also fixes the removeAll retain-root check that broke after protected pages were excluded (now counted over non-protected entries).
-
-## [1.3.1] - 2026-11-15
-
-### 新增 / Added
-
 - **Push 新增 `popUpTo` 锚点修剪语义**：一步原子完成「修剪到锚点再压入新页」——成功入栈后保留锚点及其以下页面，移除锚点与新页之间的夹层（如登出门禁 `[Home, A, B] -> [Home, Login]`，登录成功后 `pop()` 自然回 Home，不再撞 cleanStack 连根清或 popCurrent 清不掉夹层的两难）。被移除页面按 `Cancelled` 结算；锚点不在栈中时跳过修剪退化为普通 push；与 `isCleanStack`、`isPopCurrent`、`resultTo`/`onRouteResult` 互斥，组合配置直接拒绝。DSL 提供 `popUpTo<T>()` / 类 / URL / 实例四入口，`asRoot = true` 时锚点之下（含原根）一并移除、锚点提为新栈底（栈成 `[锚点, 新页]`，锚点实例 `===` 保留）；拦截器内经 `newBuilder().popUpTo(...)` 可附加同一语义（登出拦截改写的正路）。
   - **Push adds a `popUpTo` anchor-trimming intent**: one atomic "trim to an anchor, then push" step — after a successful push, the anchor and everything below it are retained while pages between the anchor and the new entry are removed (e.g. a logout gate turning `[Home, A, B]` into `[Home, Login]`, where `pop()` after login returns to Home instead of hitting the cleanStack root-clearing vs. popCurrent leftover dilemma). Removed pages settle as `Cancelled`; a missing anchor falls back to a plain push; mutually exclusive with `isCleanStack`, `isPopCurrent` and `resultTo`/`onRouteResult`, with conflicting combinations rejected up front. The DSL offers `popUpTo<T>()` plus class / URL / instance overloads; `asRoot = true` also clears everything below the anchor (including the original root) and promotes the anchor instance (`===`-retained) to the new stack root, yielding `[anchor, new]`. Interceptors can attach the same intent via `newBuilder().popUpTo(...)`.
 
