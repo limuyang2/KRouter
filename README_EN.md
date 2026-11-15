@@ -390,6 +390,21 @@ navigator.push {
 
 The anchor instance is retained by `===`; once the anchor becomes the new root, another pop hits root protection — the same class of state as a new page becoming the root after `isCleanStack`.
 
+### Protected pages
+
+Root protection is positional (the stack bottom is never removed); protected pages are **identity-based** — declared classes are never taken away by any removal operation, wherever they sit in the stack:
+
+```kotlin
+val navigator = Navigator(HomeRoute()) {
+    protect(HomeRoute::class, LockScreenRoute::class)
+}
+// Adjustable at runtime
+navigator.protect(LockScreenRoute::class)
+navigator.unprotect(LockScreenRoute::class)
+```
+
+The semantics are a "pillar", not a "wall": `pop`/`remove`/`all()` selections exclude them (an empty selection does nothing); `backTo`/`popUpTo`/`cleanStack` trims **pass through** while sparing them in place; a pop with a protected top does nothing (same as root). An `isPopCurrent` targeting a protected page degrades to plain stacking. Root protection is unchanged and remains the stack-bottom special case.
+
 ### Back and removal
 
 | Call | Behavior |

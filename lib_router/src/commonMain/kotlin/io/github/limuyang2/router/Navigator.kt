@@ -27,11 +27,110 @@ import kotlin.reflect.KClass
  * a consumer token created by [rememberRouteResult]. Push and pop operations run asynchronously.
  *
  * @param startDestination 初始路由 URL 或页面实例 / Initial route URL or destination instance.
+ * @param builder 构造期配置，如 [Builder.protect] 声明受保护页面 / Construction config, e.g. [Builder.protect].
  */
-class Navigator(startDestination: Any) {
+class Navigator(startDestination: Any, builder: Builder.() -> Unit = {}) {
 
     // internal 供同模块测试读取栈状态与取消协程；对外只经 Navigator 暴露。
-    internal val core = Core(startDestination)
+    internal val core = Core(startDestination, Builder().apply(builder).protectedClasses)
+
+    /**
+     * 声明受保护页面：无论处于栈内哪个位置，都不被任何移除操作带走——pop/remove 的目标
+     * 选择会将其剔除，backTo/popUpTo/cleanStack 的修剪穿透继续、仅其自身豁免保留原位；
+     * 受保护页在栈顶时 pop 无效（同根页行为）。根页保护不变，是其在栈底时的特例。
+     *
+     * Declares protected pages: wherever they sit in the stack, no removal operation may take
+     * them away — pop/remove selections exclude them, backTo/popUpTo/cleanStack trims pass
+     * through while sparing them in place, and a pop with a protected top does nothing (same
+     * as root). Root protection is unchanged and remains the stack-bottom special case.
+     */
+    class Builder {
+        internal val protectedClasses = mutableSetOf<KClass<*>>()
+
+        /**
+         * 声明受保护页面类型，可多次调用叠加。
+         *
+         * Declares protected page classes; multiple calls accumulate.
+         *
+         * @param classes 受保护页面类型 / Protected page classes.
+         */
+        fun protect(vararg classes: KClass<*>) {
+            protectedClasses += classes
+        }
+
+        /**
+         * 声明受保护页面类型集合，可多次调用叠加。
+         *
+         * Declares a set of protected page classes; multiple calls accumulate.
+         *
+         * @param classes 受保护页面类型集合 / Protected page classes.
+         */
+        fun protect(classes: Set<KClass<*>>) {
+            protectedClasses += classes
+        }
+
+        /**
+         * 声明 T 类型为受保护页面。
+         *
+         * Declares T as a protected page class.
+         */
+        inline fun <reified T : Any> protect() = protect(T::class)
+    }
+
+    /**
+     * 运行期追加受保护页面类型，语义与构造期 [Builder.protect] 相同，立即对后续导航生效。
+     *
+     * Adds protected page classes at runtime with the same semantics as [Builder.protect];
+     * takes effect for subsequent navigations immediately.
+     *
+     * @param classes 受保护页面类型 / Protected page classes.
+     */
+    fun protect(vararg classes: KClass<*>) {
+        core.protectedClasses += classes
+    }
+
+    /**
+     * 运行期追加受保护页面类型集合。
+     *
+     * Adds a set of protected page classes at runtime.
+     *
+     * @param classes 受保护页面类型集合 / Protected page classes.
+     */
+    fun protect(classes: Set<KClass<*>>) {
+        core.protectedClasses += classes
+    }
+
+    /**
+     * 运行期追加 T 类型为受保护页面。
+     *
+     * Adds T as a protected page class at runtime.
+     */
+    inline fun <reified T : Any> protect() = protect(T::class)
+
+    /**
+     * 解除受保护页面类型；已在栈中的对应页面不被动弹，之后可被正常移除。
+     *
+     * Removes protected page classes; stack entries are untouched and become removable afterwards.
+     *
+     * @param classes 要解除的类型 / Classes to unprotect.
+     */
+    fun unprotect(vararg classes: KClass<*>) {
+        core.protectedClasses -= classes
+    }
+
+    /**
+     * 解除 T 类型的受保护状态。
+     *
+     * Removes T from the protected classes.
+     */
+    inline fun <reified T : Any> unprotect() = unprotect(T::class)
+
+    /**
+     * 当前受保护页面类型的只读快照。
+     *
+     * Read-only snapshot of the currently protected page classes.
+     */
+    val protectedPages: Set<KClass<*>> get() = core.protectedClasses.toSet()
 
     /**
      * 供 NavDisplay 观察；请通过 Navigator 修改栈，以保留实例限制和结果生命周期管理。

@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
+## [Unreleased]
+
+### 新增 / Added
+
+- **受保护页面（身份性根保护）**：`Navigator(start) { protect(...) }` 构造期声明 + `protect()/unprotect()` 运行期调整，指定类型无论在栈内哪个位置都不被移除操作带走。柱模型语义：pop/remove/all 目标选择将其剔除（空则操作无效），backTo/popUpTo/cleanStack 修剪穿透继续、仅其自身豁免保留原位，受保护页在栈顶时 pop 无效（同根页行为），isPopCurrent 目标撞上时降级为普通叠加；根页保护不变，是其在栈底时的特例。附带修复 removeAll 全命中保根判断在剔除受保护页后失效的问题（改为按非保护项计数判断）。
+  - **Protected pages (identity-based root protection)**: declare at construction via `Navigator(start) { protect(...) }` and adjust at runtime with `protect()/unprotect()`; the declared classes are never removed from the stack regardless of position. Pillar semantics: pop/remove/all selections exclude them (an empty selection does nothing), backTo/popUpTo/cleanStack trims pass through while sparing them in place, a pop with a protected top does nothing (same as root), and an isPopCurrent targeting a protected page degrades to plain stacking. Root protection is unchanged and remains the stack-bottom special case. Also fixes the removeAll retain-root check that broke after protected pages were excluded (now counted over non-protected entries).
+
 ## [1.3.1] - 2026-11-15
 
 ### 新增 / Added

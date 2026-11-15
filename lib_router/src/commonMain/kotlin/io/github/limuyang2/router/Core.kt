@@ -32,7 +32,10 @@ private fun IRouterEntryProvider.debugLabel(): String {
     return "${this::class.simpleName}(contentKey=${contentKey()})"
 }
 
-internal class Core(startDestination: Any) :
+internal class Core(
+    startDestination: Any,
+    protectedClasses: Set<KClass<*>> = emptySet(),
+) :
     CoroutineScope by CoroutineScope(Dispatchers.Main.immediate + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
         logE { "Router Error: ${throwable.message}" }
     }) {
@@ -44,6 +47,11 @@ internal class Core(startDestination: Any) :
     }
 
     internal val mBackStack: SnapshotStateList<IRouterEntryProvider> = mutableStateListOf()
+
+    /** 受保护页面类型；豁免所有移除路径（柱模型：修剪穿透，仅其自身保留原位）。 */
+    internal val protectedClasses = mutableSetOf<KClass<*>>()
+
+    internal fun isProtected(page: Any): Boolean = page::class in protectedClasses
 
     private val globalPushInterceptors: List<IRouterPushInterceptor>
     private val globalPopInterceptors: List<IRouterPopInterceptor>
@@ -63,6 +71,7 @@ internal class Core(startDestination: Any) :
     internal val backStackEvents: SharedFlow<BackStackEvent> get() = _backStackEvents.asSharedFlow()
 
     init {
+        this.protectedClasses.addAll(protectedClasses)
         RouterSingleton.providers.forEach { provider ->
             masterKV.putAll(provider.routeMasterKV())
             aliasesKV.putAll(provider.routeAliasesKV())
@@ -376,6 +385,7 @@ internal class Core(startDestination: Any) :
 
         val matchedIndices = request.plan.removeTargets
             .map { page -> mBackStack.indexOfFirst { it === page } }
+            .filter { it >= 0 && !isProtected(mBackStack[it]) }
             .sortedDescending()
         // 等待期间原根页面也可能被别的操作移除，提交时再次保护当前根页面。
         val indicesToRemove = if (matchedIndices.size == mBackStack.size) {
@@ -461,13 +471,19 @@ internal class Core(startDestination: Any) :
     }
 
     /**
-     * cleanStack push 时，保留新栈顶，移除之前所有页面。
+     * cleanStack push 时，保留新栈顶，移除之前所有页面；受保护页面豁免保留。
      */
     private fun removeAllButTopLocked(pendingEvents: MutableList<BackStackEvent>) {
         if (mBackStack.size <= 1) return
 
-        val toRemove = mBackStack.subList(0, mBackStack.size - 1).toList()
-        mBackStack.removeRange(0, mBackStack.size - 1)
+        val toRemove = (0 until mBackStack.size - 1)
+            .map { mBackStack[it] }
+            .filter { !isProtected(it) }
+        // 倒序移除保持索引稳定，事件与结算按栈底到栈顶顺序派发。
+        for (index in mBackStack.size - 2 downTo 0) {
+            if (isProtected(mBackStack[index])) continue
+            mBackStack.removeAt(index)
+        }
 
         toRemove.forEach { victim ->
             invalidatePopPlansForRemovedPage(victim)
@@ -481,8 +497,8 @@ internal class Core(startDestination: Any) :
 
     /**
      * popUpTo push 时，保留锚点及其以下页面，移除锚点与新入栈页面之间的所有夹层页面；
-     * asRoot 时锚点之下也一并移除，锚点提为新栈底。被移除页面按 Cancelled 结算；
-     * 锚点不在栈中时跳过修剪，仅完成普通入栈。
+     * asRoot 时锚点之下也一并移除，锚点提为新栈底。受保护页面一律豁免保留原位（修剪穿透继续）；
+     * 被移除页面按 Cancelled 结算；锚点不在栈中时跳过修剪，仅完成普通入栈。
      */
     private fun trimAboveAnchorLocked(
         intent: PopUpToIntent,
@@ -496,10 +512,10 @@ internal class Core(startDestination: Any) :
             return
         }
 
-        // asRoot 时连锚点之下一起清，锚点提为新栈底。
+        // asRoot 时连锚点之下一起清，锚点提为新栈底；受保护页面一律豁免保留原位。
         val lowestRemoved = if (intent.asRoot) 0 else anchorIndex + 1
         for (index in mBackStack.lastIndex - 1 downTo lowestRemoved) {
-            if (index == anchorIndex) continue
+            if (index == anchorIndex || isProtected(mBackStack[index])) continue
             val victim = mBackStack.removeAt(index)
             invalidatePopPlansForRemovedPage(victim)
             deliverResultForRemovedEntry(
@@ -817,24 +833,32 @@ internal class Core(startDestination: Any) :
         if (mBackStack.isEmpty()) return emptyList()
 
         return when (popType) {
-            is PopType.Current -> listOf(mBackStack.lastIndex)
+            is PopType.Current -> {
+                // 栈顶自身受保护时本次返回无目标。
+                if (isProtected(mBackStack.last())) emptyList() else listOf(mBackStack.lastIndex)
+            }
+
             is PopType.Remove -> {
                 val indices = ArrayList<Int>()
                 for (i in mBackStack.lastIndex downTo 0) {
-                    if (matchFilter(mBackStack[i], popType.filter)) {
+                    // 受保护页面从移除目标中剔除（柱模型）。
+                    if (matchFilter(mBackStack[i], popType.filter) && !isProtected(mBackStack[i])) {
                         indices.add(i)
                         if (!popType.isRemoveAll) break
                     }
                 }
-                // 索引按降序排列；全部命中时去掉最后的 0，保留原根页面。
-                // 拦截器选页和实际删除共用此结果，根页面不会被当成出栈页面。
-                if (indices.size == mBackStack.size) indices.dropLast(1) else indices
+                // 索引按降序排列；全部可移除项命中（受保护页不计入）且根页在命中集内时，
+                // 去掉最后的 0 保留原根页面。拦截器选页和实际删除共用此结果。
+                val removableCount = mBackStack.count { !isProtected(it) }
+                if (indices.size == removableCount && indices.lastOrNull() == 0) indices.dropLast(1) else indices
             }
 
             is PopType.BackTo -> {
                 val index = mBackStack.indexOfLast { matchDestination(it, popType.destination) }
                 if (index in 0 until mBackStack.lastIndex) {
-                    (mBackStack.lastIndex downTo index + 1).toList()
+                    // 修剪穿透受保护页继续，仅其自身豁免保留原位。
+                    (mBackStack.lastIndex downTo index + 1)
+                        .filter { !isProtected(mBackStack[it]) }
                 } else {
                     emptyList()
                 }

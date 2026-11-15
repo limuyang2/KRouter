@@ -387,6 +387,21 @@ navigator.push {
 
 锚点实例按 `===` 保留；锚点成为新根后再 pop 会撞根页保护，与 `isCleanStack` 后新页成根是同一类状态。
 
+### 受保护页面
+
+根页保护是位置性的（栈底恒不可移除）；受保护页面是**身份性**的——声明的类型无论处于栈内哪个位置，都不被任何移除操作带走：
+
+```kotlin
+val navigator = Navigator(HomeRoute()) {
+    protect(HomeRoute::class, LockScreenRoute::class)
+}
+// 运行期可调
+navigator.protect(LockScreenRoute::class)
+navigator.unprotect(LockScreenRoute::class)
+```
+
+语义是「柱子」而非「墙」：`pop`/`remove`/`all()` 的目标选择将其剔除（剔除后为空则操作无效）；`backTo`/`popUpTo`/`cleanStack` 的修剪**穿透继续**、仅其自身豁免保留原位；受保护页在栈顶时 `pop()` 无效（同根页行为）。`isPopCurrent` 的目标撞上受保护页时降级为普通叠加。根页保护不变，是受保护页在栈底时的特例。
+
 ### 返回与移除
 
 | 调用 | 行为 |
