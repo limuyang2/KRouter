@@ -22,6 +22,7 @@ internal class RealPushInterceptorChain(
     private val interceptors: List<IRouterPushInterceptor>,
     private val index: Int,
     private val request: PushRequest,
+    private val navigator: Navigator,
     private val core: Core,
     private val onRestart: (PushRequest) -> Unit,
 ) : IRouterPushInterceptor.Chain {
@@ -35,6 +36,8 @@ internal class RealPushInterceptorChain(
     }
 
     override fun request(): PushRequest = request
+
+    override fun navigator(): Navigator = navigator
 
     override suspend fun proceed(request: PushRequest): PushResponse {
         if (index > 0) {
@@ -61,5 +64,5 @@ internal class RealPushInterceptorChain(
     private fun copy(
         index: Int = this.index,
         request: PushRequest = this.request,
-    ) = RealPushInterceptorChain(interceptors, index, request, core, onRestart)
+    ) = RealPushInterceptorChain(interceptors, index, request, navigator, core, onRestart)
 }

@@ -21,17 +21,17 @@ class PopRootRetentionTest {
     fun removingAllMatchingPagesRetainsOriginalRoot() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val root = Page()
-        val core = Core(root)
+        val navigator = Navigator(root)
         try {
             runCurrent()
-            repeat(2) { core.push { destination = Page() } }
+            repeat(2) { navigator.push { destination = Page() } }
             runCurrent()
-            core.pop { all(Page::class) }
+            navigator.pop { all(Page::class) }
             runCurrent()
-            assertEquals(1, core.mBackStack.size)
-            assertSame(root, core.getTop())
+            assertEquals(1, navigator.backStack.size)
+            assertSame(root, navigator.last())
         } finally {
-            core.cancel()
+            navigator.core.cancel()
             Dispatchers.resetMain()
         }
     }
@@ -40,20 +40,20 @@ class PopRootRetentionTest {
     fun removingAllTypesThroughGreenChannelRetainsOriginalRoot() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val root = Page()
-        val core = Core(root)
+        val navigator = Navigator(root)
         try {
             runCurrent()
-            core.push { destination = OtherPage() }
+            navigator.push { destination = OtherPage() }
             runCurrent()
-            core.pop {
+            navigator.pop {
                 all(Page::class, OtherPage::class)
                 greenChannel = true
             }
             runCurrent()
-            assertEquals(1, core.mBackStack.size)
-            assertSame(root, core.getTop())
+            assertEquals(1, navigator.backStack.size)
+            assertSame(root, navigator.last())
         } finally {
-            core.cancel()
+            navigator.core.cancel()
             Dispatchers.resetMain()
         }
     }
@@ -61,18 +61,18 @@ class PopRootRetentionTest {
     @Test
     fun removingOnlyRootIsAllowedWhenAnotherPageRemains() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val core = Core(Page())
+        val navigator = Navigator(Page())
         val other = OtherPage()
         try {
             runCurrent()
-            core.push { destination = other }
+            navigator.push { destination = other }
             runCurrent()
-            core.pop { all(Page::class) }
+            navigator.pop { all(Page::class) }
             runCurrent()
-            assertEquals(1, core.mBackStack.size)
-            assertSame(other, core.getTop())
+            assertEquals(1, navigator.backStack.size)
+            assertSame(other, navigator.last())
         } finally {
-            core.cancel()
+            navigator.core.cancel()
             Dispatchers.resetMain()
         }
     }
@@ -81,15 +81,15 @@ class PopRootRetentionTest {
     fun removingSingletonRootDoesNothing() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val root = Page()
-        val core = Core(root)
+        val navigator = Navigator(root)
         try {
             runCurrent()
-            core.pop { all(Page::class) }
+            navigator.pop { all(Page::class) }
             runCurrent()
-            assertEquals(1, core.mBackStack.size)
-            assertSame(root, core.getTop())
+            assertEquals(1, navigator.backStack.size)
+            assertSame(root, navigator.last())
         } finally {
-            core.cancel()
+            navigator.core.cancel()
             Dispatchers.resetMain()
         }
     }

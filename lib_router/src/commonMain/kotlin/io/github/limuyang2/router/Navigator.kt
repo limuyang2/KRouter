@@ -30,7 +30,8 @@ import kotlin.reflect.KClass
  */
 class Navigator(startDestination: Any) {
 
-    private val core = Core(startDestination)
+    // internal 供同模块测试读取栈状态与取消协程；对外只经 Navigator 暴露。
+    internal val core = Core(startDestination)
 
     /**
      * 供 NavDisplay 观察；请通过 Navigator 修改栈，以保留实例限制和结果生命周期管理。
@@ -62,7 +63,7 @@ class Navigator(startDestination: Any) {
      * @param builder 跳转配置 / Push configuration.
      */
     fun push(builder: PushBuilder.() -> Unit) {
-        core.push(builder)
+        core.push(this, builder)
     }
 
     /**
@@ -73,7 +74,7 @@ class Navigator(startDestination: Any) {
      * @param url 路由 URL / Route URL.
      */
     fun push(url: String) {
-        core.push { this.url = url }
+        core.push(this) { this.url = url }
     }
 
     /**
@@ -85,7 +86,7 @@ class Navigator(startDestination: Any) {
      * @param destination 目标页面实例 / Destination instance.
      */
     fun push(destination: IRouterEntryProvider) {
-        core.push { this.destination = destination }
+        core.push(this) { this.destination = destination }
     }
 
     /**
@@ -195,7 +196,7 @@ class Navigator(startDestination: Any) {
      * @param resultTo 发起页面通过 [rememberRouteResult] 创建的 token / Token created by the caller entry.
      */
     fun <R : Any> pushForResult(destination: IRouterEntryProvider, resultTo: RouteResultConsumerToken<R>) {
-        core.push {
+        core.push(this) {
             this.destination = destination
             resultTo(resultTo)
         }
@@ -210,7 +211,7 @@ class Navigator(startDestination: Any) {
      * @param resultTo 发起页面通过 [rememberRouteResult] 创建的 token / Token created by the caller entry.
      */
     fun <R : Any> pushForResult(url: String, resultTo: RouteResultConsumerToken<R>) {
-        core.push {
+        core.push(this) {
             this.url = url
             resultTo(resultTo)
         }
@@ -223,7 +224,7 @@ class Navigator(startDestination: Any) {
      * The root page is retained.
      */
     fun pop() {
-        core.pop()
+        core.pop(this)
     }
 
     /**
@@ -235,7 +236,7 @@ class Navigator(startDestination: Any) {
      * @param result 业务返回值，可明确为 null / Business result, including explicit null.
      */
     fun pop(result: Any?) {
-        core.pop { top(result) }
+        core.pop(this) { top(result) }
     }
 
     /**
@@ -247,7 +248,7 @@ class Navigator(startDestination: Any) {
      * @param builder 返回配置 / Pop configuration.
      */
     fun pop(builder: PopBuilder.() -> Unit) {
-        core.pop(builder)
+        core.pop(this, builder)
     }
 
     /**

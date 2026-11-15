@@ -22,7 +22,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 - **跳转方式**：支持页面实例和 URL，使用 `@RouterParam` 注入构造参数及属性。
 - **结果回传**：区分成功、无结果、取消和类型不匹配；Compose 使用 Consumer 接收结果。
 - **返回控制**：关闭当前页、回退到指定页、移除匹配页、清栈及根页保护。
-- **拦截器**：支持全局、页面声明和 Owner 外置绑定的 Push / Pop 拦截器。
+- **拦截器**：支持全局、页面声明和 Owner 外置绑定的 Push / Pop 拦截器，链上可获取执行当前操作的 `Navigator`。
 - **多模块**：按宿主实际编译依赖聚合模块索引，处理传递依赖和菱形依赖去重。
 - **跨平台**：共享路由 API，目标包括 Android、JVM Desktop、iOS、Kotlin/JS 和 Wasm。
 
@@ -541,6 +541,8 @@ class SourcePushInterceptor : IRouterPushInterceptor {
 页面可通过 `@Router(pushInterceptors = [...])` 绑定；全局拦截器通过 `@RouterGlobalPushInterceptor` 声明，Owner 外置绑定通过 `@RouterOwnerPushInterceptor` 声明。Pop 提供对应的注解。优先级数值越小越先执行，同一次操作先处理全局拦截器，再处理页面拦截器。
 
 Push 改写目标类型后会重新执行适用的拦截器链。调用 `chain.interrupt()` 可以中断跳转。
+
+全局拦截器是进程级单例、被所有 `Navigator` 共享；`chain.navigator()` 返回发起本次操作的 `Navigator`，多栈场景（如多窗口）据此做只读检查（`backStack`、`last()` 埋点、去重、门禁）。不建议在其中重入 push/pop：那会启动另一条拦截器链，与本次操作的先后顺序未定义。Pop 拦截器链同样提供该方法。
 
 初始路由是导航栈的初始状态而非一次跳转：`Navigator` 构造时同步种入栈底，不经过 Push 拦截器，也不派发 `BackStackEvent.Push`。需要按条件决定初始页（如登录门禁）时，应在构造前选择 `startDestination`，或在初始页就位后显式跳转。
 

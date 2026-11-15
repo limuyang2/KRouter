@@ -26,6 +26,22 @@ interface IRouterPopInterceptor {
          */
         fun request(): PopRequest
         /**
+         * 获取执行本次返回的 Navigator。全局拦截器是进程级单例、被所有 Navigator 共享，
+         * 借此才能区分多 Navigator 场景下当前操作归属哪一个栈。
+         *
+         * 定位是只读检查（如 backStack、last() 做埋点、去重、门禁判断）；不建议在其中重入
+         * push/pop——那会启动另一条拦截器链，与本次操作的先后顺序未定义。
+         *
+         * Returns the Navigator executing this pop. Global interceptors are process-level
+         * singletons shared by every Navigator, so this is the only way to tell which stack
+         * an operation belongs to when multiple Navigators exist.
+         *
+         * Intended for read-only inspection (backStack, last() for tracking, dedup or gating);
+         * reentrant push/pop is discouraged — it starts another interceptor chain whose
+         * ordering against this operation is undefined.
+         */
+        fun navigator(): Navigator
+        /**
          * 放行原请求或 withResult 创建的新请求；不允许借此修改页面选择条件。
          *
          * Continues the original request or a withResult copy; page selection cannot be changed through this method.

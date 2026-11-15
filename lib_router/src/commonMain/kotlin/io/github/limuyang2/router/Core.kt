@@ -121,27 +121,27 @@ internal class Core(startDestination: Any) :
     val pageProviderInstaller
         get() = RouterSingleton.providers.map { it.entryProviderInstaller() }
 
-    fun push(builder: Navigator.PushBuilder.() -> Unit) {
-        push(Navigator.PushBuilder().apply(builder))
+    fun push(navigator: Navigator, builder: Navigator.PushBuilder.() -> Unit) {
+        push(navigator, Navigator.PushBuilder().apply(builder))
     }
 
-    fun push(builder: Navigator.PushBuilder) {
+    fun push(navigator: Navigator, builder: Navigator.PushBuilder) {
         launch {
-            executePush(builder)
+            executePush(navigator, builder)
         }
     }
 
-    fun pop() {
-        pop(Navigator.PopBuilder())
+    fun pop(navigator: Navigator) {
+        pop(navigator, Navigator.PopBuilder())
     }
 
-    fun pop(builder: Navigator.PopBuilder.() -> Unit) {
-        pop(Navigator.PopBuilder().apply(builder))
+    fun pop(navigator: Navigator, builder: Navigator.PopBuilder.() -> Unit) {
+        pop(navigator, Navigator.PopBuilder().apply(builder))
     }
 
-    fun pop(builder: Navigator.PopBuilder) {
+    fun pop(navigator: Navigator, builder: Navigator.PopBuilder) {
         launch {
-            executePop(builder)
+            executePop(navigator, builder)
         }
     }
 
@@ -172,8 +172,8 @@ internal class Core(startDestination: Any) :
      * - 这里必须在同一个协程里串行执行内部 pop，
      *   否则会因为额外 launch 产生时序漂移。
      */
-    private suspend fun executePush(builder: Navigator.PushBuilder) {
-        // isPopCurrent 意味着 push 成功后当前页会被关闭，此时当前页无法等待结果，直接拒绝。
+    private suspend fun executePush(navigator: Navigator, builder: Navigator.PushBuilder) {
+        // isPopCurrent 意味着 push 成功后当前页会被关闭，此时当前页无法再等待结果，直接拒绝。
         if (builder.isPopCurrent && shouldTrackResult(builder)) {
             logE {
                 "路由跳转被拒绝：isPopCurrent=true 表示 push 成功后关闭当前页面，当前页面无法再等待结果，请移除 onRouteResult/resultTo 绑定。"
@@ -183,7 +183,7 @@ internal class Core(startDestination: Any) :
             return
         }
 
-        val response = getPushResponse(builder) ?: return
+        val response = getPushResponse(navigator, builder) ?: return
 
         if (response.isInterrupted) {
             logE {
@@ -212,6 +212,7 @@ internal class Core(startDestination: Any) :
             if (response.isPopCurrent) {
                 mutation.previousTopRouteForPopCurrent?.let { previousTop ->
                     executePop(
+                        navigator,
                         Navigator.PopBuilder().apply {
                             last(previousTop)
                             greenChannel = true
@@ -234,7 +235,7 @@ internal class Core(startDestination: Any) :
      * - applyPopLocked 负责在锁内修改真实栈状态；
      * - 最后再统一派发 back stack event / result dispatch。
      */
-    private suspend fun executePop(builder: Navigator.PopBuilder) {
+    private suspend fun executePop(navigator: Navigator, builder: Navigator.PopBuilder) {
         val plans = mutableListOf<PopPlan>()
         try {
             var request = navigationLock.withLock { resolvePopRequestLocked(builder.popType) } ?: return
@@ -244,7 +245,7 @@ internal class Core(startDestination: Any) :
                 val response = if (builder.greenChannel) {
                     PopResponse.Allowed(request)
                 } else {
-                    getPopResponseWithInterceptor(request)
+                    getPopResponseWithInterceptor(navigator, request)
                 }
                 when (response) {
                     PopResponse.Interrupted -> return
@@ -543,14 +544,14 @@ internal class Core(startDestination: Any) :
         dispatchActions.forEach { it() }
     }
 
-    private suspend fun getPushResponse(builder: Navigator.PushBuilder): PushResponse? {
+    private suspend fun getPushResponse(navigator: Navigator, builder: Navigator.PushBuilder): PushResponse? {
         val url = builder.url
         val destination = builder.destination
 
         return if (!url.isNullOrBlank()) {
-            getPushResponseWithUrl(url, builder)
+            getPushResponseWithUrl(navigator, url, builder)
         } else if (destination != null) {
-            getPushResponseWithClass(destination, builder)
+            getPushResponseWithClass(navigator, destination, builder)
         } else {
             logE { "路由跳转失败！请检查 url 或者 destination 是否为空" }
             null
@@ -558,6 +559,7 @@ internal class Core(startDestination: Any) :
     }
 
     private suspend fun getPushResponseWithUrl(
+        navigator: Navigator,
         url: String,
         builder: Navigator.PushBuilder,
     ): PushResponse? {
@@ -583,11 +585,12 @@ internal class Core(startDestination: Any) :
         return if (builder.greenChannel) {
             getPushResponseWithGreenChannel(request)
         } else {
-            getPushResponseWithInterceptor(request)
+            getPushResponseWithInterceptor(navigator, request)
         }
     }
 
     private suspend fun getPushResponseWithClass(
+        navigator: Navigator,
         destination: IRouterEntryProvider,
         builder: Navigator.PushBuilder,
     ): PushResponse {
@@ -608,7 +611,7 @@ internal class Core(startDestination: Any) :
         return if (builder.greenChannel) {
             getPushResponseWithGreenChannel(request)
         } else {
-            getPushResponseWithInterceptor(request)
+            getPushResponseWithInterceptor(navigator, request)
         }
     }
 
@@ -640,7 +643,10 @@ internal class Core(startDestination: Any) :
      * 走拦截器链处理 push 请求。
      * 支持 onRestart 重新发起整个拦截器链（例如拦截器修改了目标后需要重新走一遍）。
      */
-    private suspend fun getPushResponseWithInterceptor(request: PushRequest): PushResponse {
+    private suspend fun getPushResponseWithInterceptor(
+        navigator: Navigator,
+        request: PushRequest,
+    ): PushResponse {
         var currentRequest = request
 
         do {
@@ -664,6 +670,7 @@ internal class Core(startDestination: Any) :
                 interceptors = interceptors,
                 index = 0,
                 request = currentRequest,
+                navigator = navigator,
                 core = this,
                 onRestart = { newRequest ->
                     currentRequest = newRequest
@@ -729,7 +736,10 @@ internal class Core(startDestination: Any) :
         }
     }
 
-    private suspend fun getPopResponseWithInterceptor(request: PopRequest): PopResponse {
+    private suspend fun getPopResponseWithInterceptor(
+        navigator: Navigator,
+        request: PopRequest,
+    ): PopResponse {
         val pageInterceptors = request.plan.removeTargets
             .asSequence()
             .mapNotNull { page -> getRouterInfo(page::class) }
@@ -743,6 +753,7 @@ internal class Core(startDestination: Any) :
             interceptors = globalPopInterceptors + pageInterceptors,
             index = 0,
             request = request,
+            navigator = navigator,
         ).proceed(request)
     }
 

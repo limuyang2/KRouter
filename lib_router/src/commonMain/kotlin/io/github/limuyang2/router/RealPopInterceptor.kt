@@ -4,10 +4,13 @@ internal class RealPopInterceptorChain(
     private val interceptors: List<IRouterPopInterceptor>,
     private val index: Int,
     private val request: PopRequest,
+    private val navigator: Navigator,
 ) : IRouterPopInterceptor.Chain {
     private var advanced = false
 
     override fun request(): PopRequest = request
+
+    override fun navigator(): Navigator = navigator
 
     override suspend fun proceed(request: PopRequest): PopResponse {
         check(!advanced) { "A Pop interceptor may proceed or redirect only once." }
@@ -32,7 +35,7 @@ internal class RealPopInterceptorChain(
     private suspend fun proceedNext(request: PopRequest): PopResponse {
         if (!request.plan.isValid) return PopResponse.Interrupted
         if (index == interceptors.size) return PopResponse.Allowed(request)
-        val next = RealPopInterceptorChain(interceptors, index + 1, request)
+        val next = RealPopInterceptorChain(interceptors, index + 1, request, navigator)
         return interceptors[index].intercept(next)
     }
 }

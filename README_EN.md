@@ -22,7 +22,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 - **Navigation**: Supports page instances and URLs; `@RouterParam` injects constructor parameters and properties.
 - **Result delivery**: Distinguishes success, no result, cancellation, and type mismatch; Compose receives results through a Consumer.
 - **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, with root-page protection.
-- **Interceptors**: Global, page-declared, and owner-bound Push / Pop interceptors.
+- **Interceptors**: Global, page-declared, and owner-bound Push / Pop interceptors, with the executing `Navigator` available on the chain.
 - **Multi-module**: Aggregates module indices from the host's actual compile dependencies, handling transitive dependencies and diamond-dependency deduplication.
 - **Cross-platform**: A shared routing API targeting Android, JVM Desktop, iOS, Kotlin/JS, and Wasm.
 
@@ -544,6 +544,8 @@ class SourcePushInterceptor : IRouterPushInterceptor {
 Pages bind them via `@Router(pushInterceptors = [...])`; global interceptors are declared with `@RouterGlobalPushInterceptor`, owner-bound ones with `@RouterOwnerPushInterceptor`. Pop has corresponding annotations. Lower priority values run first; within one operation, global interceptors run before page interceptors.
 
 When a Push interceptor rewrites the target type, the applicable interceptor chain restarts. Call `chain.interrupt()` to abort the navigation.
+
+Global interceptors are process-level singletons shared by every `Navigator`; `chain.navigator()` returns the `Navigator` executing the current operation, so multi-stack setups (e.g. multiple windows) can inspect the owning stack read-only (`backStack`, `last()` for tracking, dedup or gating). Reentrant push/pop is discouraged: it starts another interceptor chain whose ordering against the current operation is undefined. The pop interceptor chain exposes the same method.
 
 The start destination is the stack's initial state, not a navigation: `Navigator` seeds it synchronously during construction without push interceptors and without emitting `BackStackEvent.Push`. For a conditional start page (e.g. a login gate), choose the `startDestination` before construction, or navigate explicitly once the initial page is in place.
 

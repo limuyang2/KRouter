@@ -28,12 +28,12 @@ class InitialBackStackTest {
     @Test
     fun instanceStartDestinationIsSeededWithoutPumpingScheduler() = withRouter {
         val start = Page(7)
-        val core = Core(start)
+        val navigator = Navigator(start)
         try {
-            assertEquals(1, core.mBackStack.size)
-            assertSame(start, core.getTop())
+            assertEquals(1, navigator.backStack.size)
+            assertSame(start, navigator.last())
         } finally {
-            core.cancel()
+            navigator.core.cancel()
         }
     }
 
@@ -58,26 +58,26 @@ class InitialBackStackTest {
             },
         )
 
-        val core = Core("test://start/home?id=42")
+        val navigator = Navigator("test://start/home?id=42")
         try {
-            assertEquals(1, core.mBackStack.size)
-            assertSame(start, core.getTop())
+            assertEquals(1, navigator.backStack.size)
+            assertSame(start, navigator.last())
             assertEquals(mapOf("id" to listOf("42")), receivedExtras)
         } finally {
-            core.cancel()
+            navigator.core.cancel()
         }
     }
 
     @Test
     fun unregisteredUrlSeedsVisibleUnknownRoute() = withRouter {
-        val core = Core("test://missing/page")
+        val navigator = Navigator("test://missing/page")
         try {
-            assertEquals(1, core.mBackStack.size)
-            val top = core.getTop()
+            assertEquals(1, navigator.backStack.size)
+            val top = navigator.last()
             assertTrue(top is UnknownRoute)
             assertEquals("test://missing/page", top.uri.toString())
         } finally {
-            core.cancel()
+            navigator.core.cancel()
         }
     }
 
@@ -105,20 +105,20 @@ class InitialBackStackTest {
         }
 
         val start = Page(1)
-        val core = Core(start)
+        val navigator = Navigator(start)
         try {
             // 初始路由不经过拦截器链，首页直接就位。
-            assertSame(start, core.getTop())
+            assertSame(start, navigator.last())
             assertEquals(0, intercepted)
 
             // 后续普通 push 仍会被全局拦截器中断。
-            core.push { destination = Login }
+            navigator.push { destination = Login }
             runCurrent()
             assertEquals(1, intercepted)
-            assertSame(start, core.getTop())
-            assertEquals(1, core.mBackStack.size)
+            assertSame(start, navigator.last())
+            assertEquals(1, navigator.backStack.size)
         } finally {
-            core.cancel()
+            navigator.core.cancel()
         }
     }
 

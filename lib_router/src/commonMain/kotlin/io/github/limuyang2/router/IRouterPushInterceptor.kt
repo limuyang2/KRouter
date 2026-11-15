@@ -26,6 +26,22 @@ interface IRouterPushInterceptor {
          */
         fun request(): PushRequest
         /**
+         * 获取执行本次跳转的 Navigator。全局拦截器是进程级单例、被所有 Navigator 共享，
+         * 借此才能区分多 Navigator 场景下当前操作归属哪一个栈。
+         *
+         * 定位是只读检查（如 backStack、last() 做埋点、去重、门禁判断）；不建议在其中重入
+         * push/pop——那会启动另一条拦截器链，与本次操作的先后顺序未定义。
+         *
+         * Returns the Navigator executing this push. Global interceptors are process-level
+         * singletons shared by every Navigator, so this is the only way to tell which stack
+         * an operation belongs to when multiple Navigators exist.
+         *
+         * Intended for read-only inspection (backStack, last() for tracking, dedup or gating);
+         * reentrant push/pop is discouraged — it starts another interceptor chain whose
+         * ordering against this operation is undefined.
+         */
+        fun navigator(): Navigator
+        /**
          * 继续处理请求；改写目标类型时重新执行目标对应的拦截器链。
          *
          * Continues the request; changing the destination class restarts the applicable interceptor chain.

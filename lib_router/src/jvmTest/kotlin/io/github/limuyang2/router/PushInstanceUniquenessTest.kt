@@ -20,14 +20,14 @@ class PushInstanceUniquenessTest {
     private object SingletonPage : IRouterEntryProvider
 
     @Test
-    fun rejectsInstanceAlreadyBelowTopWithFailureCallbacks() = withCore { core ->
-        val root = core.getTop()!!
-        core.push { destination = Page(1) }
+    fun rejectsInstanceAlreadyBelowTopWithFailureCallbacks() = withCore { navigator ->
+        val root = navigator.last()!!
+        navigator.push { destination = Page(1) }
         runCurrent()
-        val before = core.mBackStack.toList()
+        val before = navigator.backStack.toList()
         val callbacks = mutableListOf<String>()
 
-        core.push {
+        navigator.push {
             destination = root
             routeBeforeCallback = { callbacks += "before" }
             routeSuccessCallback = { callbacks += "success" }
@@ -36,61 +36,61 @@ class PushInstanceUniquenessTest {
         }
         runCurrent()
 
-        assertEquals(before, core.mBackStack.toList())
+        assertEquals(before, navigator.backStack.toList())
         assertEquals(listOf("failure", "completed"), callbacks)
     }
 
     @Test
-    fun queuedPushesOfSingletonAddOnlyOneEntry() = withCore { core ->
-        repeat(2) { core.push { destination = SingletonPage } }
+    fun queuedPushesOfSingletonAddOnlyOneEntry() = withCore { navigator ->
+        repeat(2) { navigator.push { destination = SingletonPage } }
         runCurrent()
 
-        assertEquals(2, core.mBackStack.size)
-        assertSame(SingletonPage, core.getTop())
+        assertEquals(2, navigator.backStack.size)
+        assertSame(SingletonPage, navigator.last())
     }
 
     @Test
-    fun allowsEqualButDistinctInstances() = withCore { core ->
+    fun allowsEqualButDistinctInstances() = withCore { navigator ->
         val first = Page(1)
         val second = Page(1)
         assertEquals(first, second)
         assertEquals(first.contentKey(), second.contentKey())
         assertNotSame(first, second)
 
-        core.push { destination = first }
-        core.push { destination = second }
+        navigator.push { destination = first }
+        navigator.push { destination = second }
         runCurrent()
 
-        assertEquals(3, core.mBackStack.size)
-        assertSame(first, core.mBackStack[1])
-        assertSame(second, core.mBackStack[2])
+        assertEquals(3, navigator.backStack.size)
+        assertSame(first, navigator.backStack[1])
+        assertSame(second, navigator.backStack[2])
     }
 
     @Test
-    fun allowsInstanceToReenterAfterRemoval() = withCore { core ->
-        core.push { destination = SingletonPage }
+    fun allowsInstanceToReenterAfterRemoval() = withCore { navigator ->
+        navigator.push { destination = SingletonPage }
         runCurrent()
-        core.pop()
+        navigator.pop()
         runCurrent()
-        assertEquals(1, core.mBackStack.size)
+        assertEquals(1, navigator.backStack.size)
 
-        core.push { destination = SingletonPage }
+        navigator.push { destination = SingletonPage }
         runCurrent()
 
-        assertEquals(2, core.mBackStack.size)
-        assertSame(SingletonPage, core.getTop())
+        assertEquals(2, navigator.backStack.size)
+        assertSame(SingletonPage, navigator.last())
     }
 
     @Test
-    fun navigationFlagsDoNotAllowDuplicateInstances() = withCore { core ->
-        val root = core.getTop()!!
+    fun navigationFlagsDoNotAllowDuplicateInstances() = withCore { navigator ->
+        val root = navigator.last()!!
         val top = Page(1)
-        core.push { destination = top }
+        navigator.push { destination = top }
         runCurrent()
         var failures = 0
 
         repeat(3) { mode ->
-            core.push {
+            navigator.push {
                 destination = root
                 greenChannel = mode == 0
                 isCleanStack = mode == 1
@@ -98,34 +98,34 @@ class PushInstanceUniquenessTest {
                 routeFailureCallback = { failures++ }
             }
             runCurrent()
-            assertEquals(2, core.mBackStack.size)
-            assertSame(root, core.mBackStack[0])
-            assertSame(top, core.getTop())
+            assertEquals(2, navigator.backStack.size)
+            assertSame(root, navigator.backStack[0])
+            assertSame(top, navigator.last())
         }
         assertEquals(3, failures)
     }
 
     @Test
-    fun preventDuplicatesStillRejectsSameTopTypeWithDifferentInstance() = withCore { core ->
-        val root = core.getTop()!!
-        core.push {
+    fun preventDuplicatesStillRejectsSameTopTypeWithDifferentInstance() = withCore { navigator ->
+        val root = navigator.last()!!
+        navigator.push {
             destination = Page(1)
             preventDuplicates = true
         }
         runCurrent()
 
-        assertEquals(1, core.mBackStack.size)
-        assertSame(root, core.getTop())
+        assertEquals(1, navigator.backStack.size)
+        assertSame(root, navigator.last())
     }
 
-    private fun withCore(block: suspend TestScope.(Core) -> Unit) = runTest {
+    private fun withCore(block: suspend TestScope.(Navigator) -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val core = Core(Page(0))
+        val navigator = Navigator(Page(0))
         try {
             runCurrent()
-            block(core)
+            block(navigator)
         } finally {
-            core.cancel()
+            navigator.core.cancel()
             Dispatchers.resetMain()
         }
     }

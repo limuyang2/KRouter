@@ -4,7 +4,14 @@
 All notable changes to this project are documented in this file.
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
+
+## [Unreleased]
+
+### 新增 / Added
+
+- **拦截器链可获取所属 Navigator**：`IRouterPushInterceptor.Chain` 与 `IRouterPopInterceptor.Chain` 新增 `navigator()`，返回执行当前操作的 `Navigator`。全局拦截器是进程级单例、被所有 Navigator 共享，多 Navigator（如多窗口）场景下借此区分操作归属哪一个栈，做只读检查（`backStack`、`last()` 埋点、去重、门禁）；不建议在其中重入 push/pop。接口仅由库内实现，现有拦截器源码兼容、二进制不兼容，随下一个 minor 版本发布。
+  - **Interceptor chains expose the owning Navigator**: `IRouterPushInterceptor.Chain` and `IRouterPopInterceptor.Chain` add `navigator()`, returning the `Navigator` executing the current operation. Global interceptors are process-level singletons shared by every Navigator, so this is how multi-Navigator setups (e.g. multiple windows) tell which stack an operation belongs to for read-only inspection (`backStack`, `last()` for tracking, dedup or gating); reentrant push/pop is discouraged. The interfaces are implemented only inside the library — existing interceptors stay source-compatible while binaries do not, shipping with the next minor release.
 
 ## [1.2.0] - 2026-11-14
 
