@@ -21,7 +21,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 - **Start destination**: Resolved and seeded synchronously during construction — the first frame shows a real page with no startup flash and no push interceptors involved.
 - **Navigation**: Supports page instances and URLs; `@RouterParam` injects constructor parameters and properties.
 - **Result delivery**: Distinguishes success, no result, cancellation, and type mismatch; Compose receives results through a Consumer.
-- **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, with root-page protection.
+- **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, and `popUpTo` anchor trimming with root-page protection; protected pages can never be removed wherever they sit in the stack.
 - **Interceptors**: Global, page-declared, and owner-bound Push / Pop interceptors, with the executing `Navigator` available on the chain.
 - **Multi-module**: Aggregates module indices from the host's actual compile dependencies, handling transitive dependencies and diamond-dependency deduplication.
 - **Cross-platform**: A shared routing API targeting Android, JVM Desktop, iOS, Kotlin/JS, and Wasm.
