@@ -341,6 +341,62 @@ class Navigator(startDestination: Any) {
          */
         var isPopCurrent = false
         /**
+         * 成功入栈后保留锚点及其以下页面，移除锚点与新页面之间的所有页面（登出门禁等
+         * 「修剪到锚点再压新页」场景）；被移除页面按 Cancelled 结算。锚点不在栈中时跳过
+         * 修剪，仅完成普通入栈。与 isCleanStack、isPopCurrent、onRouteResult/resultTo 互斥。
+         *
+         * Retains the anchor and everything below it after a successful push, removing all pages
+         * between the anchor and the new entry (trim-to-anchor-then-push, e.g. a logout gate);
+         * removed pages settle as Cancelled. Trimming is skipped when the anchor is absent.
+         * Mutually exclusive with isCleanStack, isPopCurrent and onRouteResult/resultTo.
+         */
+        internal var popUpTo: PopType.BackTo.PopDestination? = null
+
+        /**
+         * 成功入栈后保留最近的 T 类型锚点及其以下页面，移除锚点与新页面之间的所有页面。
+         *
+         * After a successful push, retains the nearest T anchor and everything below it, removing all
+         * pages between the anchor and the new entry.
+         */
+        inline fun <reified T : Any> popUpTo() = popUpTo(T::class)
+
+        /**
+         * 成功入栈后保留最近的指定类型锚点及其以下页面，移除锚点与新页面之间的所有页面。
+         *
+         * After a successful push, retains the nearest anchor of the class and everything below it,
+         * removing all pages between the anchor and the new entry.
+         *
+         * @param clazz 锚点路由类型 / Anchor route class.
+         */
+        fun popUpTo(clazz: KClass<*>) {
+            popUpTo = PopType.BackTo.PopDestination.ByClass(clazz)
+        }
+
+        /**
+         * 成功入栈后保留 URL 匹配类型的最近锚点及其以下页面，移除锚点与新页面之间的所有页面；
+         * 查询参数不参与匹配。
+         *
+         * After a successful push, retains the nearest anchor resolved by the URL and everything below
+         * it, removing all pages between the anchor and the new entry; query parameters are ignored.
+         *
+         * @param url 用于查找锚点类型的 URL / URL resolving the anchor class.
+         */
+        fun popUpTo(url: String) {
+            popUpTo = PopType.BackTo.PopDestination.ByUrl(url)
+        }
+
+        /**
+         * 成功入栈后保留按 === 匹配的指定实例及其以下页面，移除该实例与新页面之间的所有页面。
+         *
+         * After a successful push, retains the exact instance matched by === and everything below it,
+         * removing all pages between it and the new entry.
+         *
+         * @param instance 栈中已有的锚点实例 / Existing anchor instance in the stack.
+         */
+        fun popUpTo(instance: IRouterEntryProvider) {
+            popUpTo = PopType.BackTo.PopDestination.ByInstance(instance)
+        }
+        /**
          * 跳过 Push 拦截器，仍保留目标解析、实例去重和栈变更规则。
          *
          * Skips push interceptors while retaining resolution, instance uniqueness and stack-mutation rules.

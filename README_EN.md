@@ -363,9 +363,21 @@ navigator.push {
 | `preventDuplicates` | Blocks a duplicate push whose target type matches the top of the stack. |
 | `isCleanStack` | Removes old pages after a successful push, keeping only the new page. |
 | `isPopCurrent` | Closes the old current page after the new page opens successfully. |
+| `popUpTo(clazz / url / instance)` | Retains the anchor and everything below it after a successful push, removing pages between the anchor and the new entry. |
 | `greenChannel` | Skips Push interceptors; target resolution and instance-identity checks still run. |
 
 `isPopCurrent` closes the old page, and the new page does not inherit its result relationships. If the old page was being awaited for a result, that request settles as `Cancelled`; `isPopCurrent = true` cannot be combined with `resultTo` or `onRouteResult`.
+
+`popUpTo` is a single atomic "trim to an anchor, then push" step, fitting logout gates and similar flows:
+
+```kotlin
+navigator.push {
+    destination = LoginRoute()
+    popUpTo<HomeRoute>()   // [Home, A, B] -> [Home, Login]; after login, pop() returns to Home
+}
+```
+
+Removed in-between pages settle as `Cancelled`; a missing anchor skips trimming and falls back to a plain push; anchoring at the root yields `[root, new]` instead of clearing the root. `popUpTo` is mutually exclusive with `isCleanStack`, `isPopCurrent` and `resultTo`/`onRouteResult` — conflicting combinations are rejected. Inside interceptors the same intent can be attached via `newBuilder().popUpTo(...)`.
 
 ### Back and removal
 

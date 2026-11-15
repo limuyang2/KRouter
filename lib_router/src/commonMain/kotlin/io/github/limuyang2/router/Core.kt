@@ -183,6 +183,18 @@ internal class Core(startDestination: Any) :
             return
         }
 
+        // popUpTo 是唯一的栈修剪意图，与其它修剪标志及结果绑定互斥，组合配置直接拒绝。
+        if (builder.popUpTo != null &&
+            (builder.isCleanStack || builder.isPopCurrent || shouldTrackResult(builder))
+        ) {
+            logE {
+                "路由跳转被拒绝：popUpTo 不能与 isCleanStack、isPopCurrent、onRouteResult/resultTo 同时使用。"
+            }
+            builder.routeFailureCallback?.invoke()
+            builder.routeCompletedCallback?.invoke()
+            return
+        }
+
         val response = getPushResponse(navigator, builder) ?: return
 
         if (response.isInterrupted) {
@@ -326,6 +338,10 @@ internal class Core(startDestination: Any) :
             // isPopCurrent 必须等 push 成功回调之后再串行执行 pop。
             response.isPopCurrent -> Unit
 
+            response.popUpTo != null -> {
+                trimAboveAnchorLocked(response.popUpTo!!, pendingEvents)
+            }
+
             previousTopRoute != null && shouldTrackResult(builder) -> {
                 trackPushResultRequest(
                     builder = builder,
@@ -464,6 +480,33 @@ internal class Core(startDestination: Any) :
     }
 
     /**
+     * popUpTo push 时，保留锚点及其以下页面，移除锚点与新入栈页面之间的所有夹层页面；
+     * 被移除页面按 Cancelled 结算。锚点不在栈中时跳过修剪，仅完成普通入栈。
+     */
+    private fun trimAboveAnchorLocked(
+        anchor: PopType.BackTo.PopDestination,
+        pendingEvents: MutableList<BackStackEvent>,
+    ) {
+        // 新页已在栈顶，锚点查找排除栈顶自身。
+        val anchorIndex = (0 until mBackStack.lastIndex)
+            .indexOfLast { matchDestination(mBackStack[it], anchor) }
+        if (anchorIndex < 0) {
+            logE { "popUpTo 目标页面不在返回栈中，跳过修剪：[$anchor]" }
+            return
+        }
+
+        for (index in mBackStack.lastIndex - 1 downTo anchorIndex + 1) {
+            val victim = mBackStack.removeAt(index)
+            invalidatePopPlansForRemovedPage(victim)
+            deliverResultForRemovedEntry(
+                targetContentKey = victim.contentKey(),
+                routeResult = RouteResult.Cancelled,
+            )
+            pendingEvents.add(BackStackEvent.Pop(victim, mBackStack.toList()))
+        }
+    }
+
+    /**
      * 记录“caller 等 target 返回结果”的一跳请求关系。
      *
      * 这里只登记 request 关系；结果派发延迟到 caller 重新回到前台后。
@@ -576,6 +619,7 @@ internal class Core(startDestination: Any) :
             preventDuplicates = builder.preventDuplicates,
             isCleanStack = builder.isCleanStack,
             isPopCurrent = builder.isPopCurrent,
+            popUpTo = builder.popUpTo,
             routeBeforeCallback = builder.routeBeforeCallback,
             routeSuccessCallback = builder.routeSuccessCallback,
             routeFailureCallback = builder.routeFailureCallback,
@@ -602,6 +646,7 @@ internal class Core(startDestination: Any) :
             preventDuplicates = builder.preventDuplicates,
             isCleanStack = builder.isCleanStack,
             isPopCurrent = builder.isPopCurrent,
+            popUpTo = builder.popUpTo,
             routeBeforeCallback = builder.routeBeforeCallback,
             routeSuccessCallback = builder.routeSuccessCallback,
             routeFailureCallback = builder.routeFailureCallback,
@@ -693,6 +738,7 @@ internal class Core(startDestination: Any) :
             preventDuplicates = request.preventDuplicates,
             isCleanStack = request.isCleanStack,
             isPopCurrent = request.isPopCurrent,
+            popUpTo = request.popUpTo,
             routeBeforeCallback = request.routeBeforeCallback,
             routeSuccessCallback = request.routeSuccessCallback,
             routeFailureCallback = request.routeFailureCallback,

@@ -1,5 +1,7 @@
 package io.github.limuyang2.router
 
+import kotlin.reflect.KClass
+
 /**
  * Push 拦截器读取的不可变请求；originalUri 保留原输入，uri 是不含查询参数的匹配地址。
  *
@@ -17,6 +19,7 @@ class PushRequest internal constructor(
     val preventDuplicates: Boolean,
     val isCleanStack: Boolean,
     val isPopCurrent: Boolean,
+    internal val popUpTo: PopType.BackTo.PopDestination? = null,
 ) {
     /**
      * 创建保留当前配置的新构建器，不修改原请求
@@ -39,6 +42,7 @@ class PushRequest internal constructor(
         preventDuplicates: Boolean = this.preventDuplicates,
         isCleanStack: Boolean = this.isCleanStack,
         isPopCurrent: Boolean = this.isPopCurrent,
+        popUpTo: PopType.BackTo.PopDestination? = this.popUpTo,
     ): PushRequest {
         return PushRequest(
             originalUri,
@@ -51,7 +55,8 @@ class PushRequest internal constructor(
             routeCompletedCallback = routeCompletedCallback,
             preventDuplicates = preventDuplicates,
             isCleanStack = isCleanStack,
-            isPopCurrent = isPopCurrent
+            isPopCurrent = isPopCurrent,
+            popUpTo = popUpTo
         )
     }
 
@@ -73,6 +78,7 @@ class PushRequest internal constructor(
         private var preventDuplicates: Boolean = request.preventDuplicates
         private var isCleanStack: Boolean = request.isCleanStack
         private var isPopCurrent: Boolean = request.isPopCurrent
+        private var popUpTo: PopType.BackTo.PopDestination? = request.popUpTo
 
         /**
          * 设置成功跳转后仅保留新页面
@@ -90,6 +96,58 @@ class PushRequest internal constructor(
          * Closes the previous current page after a successful push; the new page inherits no result relationships.
          */
         fun popCurrent(isPop: Boolean = true) = this.apply { this.isPopCurrent = isPop }
+
+        /**
+         * 成功入栈后保留最近的 T 类型锚点及其以下页面，移除锚点与新页面之间的所有页面。
+         * 锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
+         *
+         * After a successful push, retains the nearest T anchor and everything below it, removing all pages
+         * between the anchor and the new entry. Trimming is skipped when the anchor is absent; mutually
+         * exclusive with cleanStack/popCurrent/result bindings.
+         */
+        inline fun <reified T : Any> popUpTo() = popUpTo(T::class)
+
+        /**
+         * 成功入栈后保留最近的指定类型锚点及其以下页面，移除锚点与新页面之间的所有页面。
+         * 锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
+         *
+         * After a successful push, retains the nearest anchor of the class and everything below it, removing
+         * all pages between the anchor and the new entry. Trimming is skipped when the anchor is absent;
+         * mutually exclusive with cleanStack/popCurrent/result bindings.
+         *
+         * @param clazz 锚点路由类型 / Anchor route class.
+         */
+        fun popUpTo(clazz: KClass<*>) = apply {
+            popUpTo = PopType.BackTo.PopDestination.ByClass(clazz)
+        }
+
+        /**
+         * 成功入栈后保留 URL 匹配类型的最近锚点及其以下页面，移除锚点与新页面之间的所有页面；
+         * 查询参数不参与匹配。锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
+         *
+         * After a successful push, retains the nearest anchor resolved by the URL and everything below it,
+         * removing all pages between the anchor and the new entry; query parameters are ignored. Trimming
+         * is skipped when the anchor is absent; mutually exclusive with cleanStack/popCurrent/result bindings.
+         *
+         * @param url 用于查找锚点类型的 URL / URL resolving the anchor class.
+         */
+        fun popUpTo(url: String) = apply {
+            popUpTo = PopType.BackTo.PopDestination.ByUrl(url)
+        }
+
+        /**
+         * 成功入栈后保留按 === 匹配的指定实例及其以下页面，移除该实例与新页面之间的所有页面。
+         * 实例不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
+         *
+         * After a successful push, retains the exact instance matched by === and everything below it,
+         * removing all pages between it and the new entry. Trimming is skipped when the instance is absent;
+         * mutually exclusive with cleanStack/popCurrent/result bindings.
+         *
+         * @param instance 栈中已有的锚点实例 / Existing anchor instance in the stack.
+         */
+        fun popUpTo(instance: IRouterEntryProvider) = apply {
+            popUpTo = PopType.BackTo.PopDestination.ByInstance(instance)
+        }
 
         /**
          * 控制栈顶相同类型去重；同一对象重复入栈始终被拒绝。
@@ -207,7 +265,8 @@ class PushRequest internal constructor(
                     routeSuccessCallback = routeSuccessCallback,
                     preventDuplicates = preventDuplicates,
                     isCleanStack = isCleanStack,
-                    isPopCurrent = isPopCurrent
+                    isPopCurrent = isPopCurrent,
+                    popUpTo = popUpTo
                 )
             } else if (schema != null || host != null || path != null) {
                 val uri = (request.uri?.buildUpon() ?: RouteUri.Builder())
@@ -224,7 +283,8 @@ class PushRequest internal constructor(
                     routeSuccessCallback = routeSuccessCallback,
                     preventDuplicates = preventDuplicates,
                     isCleanStack = isCleanStack,
-                    isPopCurrent = isPopCurrent
+                    isPopCurrent = isPopCurrent,
+                    popUpTo = popUpTo
                 )
             } else {
                 if (destination == null && uri == null) {
@@ -238,7 +298,8 @@ class PushRequest internal constructor(
                     routeSuccessCallback = routeSuccessCallback,
                     preventDuplicates = preventDuplicates,
                     isCleanStack = isCleanStack,
-                    isPopCurrent = isPopCurrent
+                    isPopCurrent = isPopCurrent,
+                    popUpTo = popUpTo
                 )
             }
         }

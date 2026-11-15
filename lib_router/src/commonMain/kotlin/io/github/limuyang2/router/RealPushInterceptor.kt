@@ -14,6 +14,7 @@ internal class RealPushInterceptor(private val core: Core) : IRouterPushIntercep
             preventDuplicates = request.preventDuplicates,
             isCleanStack = request.isCleanStack,
             isPopCurrent = request.isPopCurrent,
+            popUpTo = request.popUpTo,
         )
     }
 }

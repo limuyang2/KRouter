@@ -360,9 +360,21 @@ navigator.push {
 | `preventDuplicates` | 阻止与栈顶页面类型相同的重复跳转。 |
 | `isCleanStack` | 成功跳转后移除旧页面，仅保留新页面。 |
 | `isPopCurrent` | 成功打开新页面后关闭旧 current。 |
+| `popUpTo(clazz / url / instance)` | 成功入栈后保留锚点及其以下页面，移除锚点与新页面之间的夹层。 |
 | `greenChannel` | 跳过 Push 拦截器，仍执行目标解析和实例唯一性检查。 |
 
 `isPopCurrent` 是关闭旧页面的操作，新页面不会继承旧页面的结果关系。旧页面被上游等待结果时，该请求会结算为 `Cancelled`；`isPopCurrent = true` 不能同时绑定 `resultTo` 或 `onRouteResult`。
+
+`popUpTo` 是「修剪到锚点再压入新页」的一步原子语义，适合登出门禁等场景：
+
+```kotlin
+navigator.push {
+    destination = LoginRoute()
+    popUpTo<HomeRoute>()   // [Home, A, B] -> [Home, Login]，登录成功后 pop() 自然回 Home
+}
+```
+
+被移除的夹层页面按 `Cancelled` 结算；锚点不在栈中时跳过修剪、仅完成普通入栈；锚点为根页时结果为 `[根页, 新页]`，不会触发连根清。`popUpTo` 与 `isCleanStack`、`isPopCurrent`、`resultTo`/`onRouteResult` 互斥，组合配置会被拒绝。拦截器内可通过 `newBuilder().popUpTo(...)` 附加同一语义。
 
 ### 返回与移除
 
