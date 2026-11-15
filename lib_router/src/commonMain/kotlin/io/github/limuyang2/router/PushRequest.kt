@@ -3,6 +3,17 @@ package io.github.limuyang2.router
 import kotlin.reflect.KClass
 
 /**
+ * push 的锚点修剪意图；asRoot = true 时锚点之下也一并移除，锚点提为新栈底。
+ *
+ * Anchor-trimming intent for push; asRoot = true also removes everything below the anchor,
+ * promoting it to the new stack root.
+ */
+internal data class PopUpToIntent(
+    val destination: PopType.BackTo.PopDestination,
+    val asRoot: Boolean = false,
+)
+
+/**
  * Push 拦截器读取的不可变请求；originalUri 保留原输入，uri 是不含查询参数的匹配地址。
  *
  * Immutable request inspected by push interceptors; originalUri retains the input and uri is the query-free match URI.
@@ -19,7 +30,7 @@ class PushRequest internal constructor(
     val preventDuplicates: Boolean,
     val isCleanStack: Boolean,
     val isPopCurrent: Boolean,
-    internal val popUpTo: PopType.BackTo.PopDestination? = null,
+    internal val popUpTo: PopUpToIntent? = null,
 ) {
     /**
      * 创建保留当前配置的新构建器，不修改原请求
@@ -42,7 +53,7 @@ class PushRequest internal constructor(
         preventDuplicates: Boolean = this.preventDuplicates,
         isCleanStack: Boolean = this.isCleanStack,
         isPopCurrent: Boolean = this.isPopCurrent,
-        popUpTo: PopType.BackTo.PopDestination? = this.popUpTo,
+        popUpTo: PopUpToIntent? = this.popUpTo,
     ): PushRequest {
         return PushRequest(
             originalUri,
@@ -78,7 +89,7 @@ class PushRequest internal constructor(
         private var preventDuplicates: Boolean = request.preventDuplicates
         private var isCleanStack: Boolean = request.isCleanStack
         private var isPopCurrent: Boolean = request.isPopCurrent
-        private var popUpTo: PopType.BackTo.PopDestination? = request.popUpTo
+        private var popUpTo: PopUpToIntent? = request.popUpTo
 
         /**
          * 设置成功跳转后仅保留新页面
@@ -98,55 +109,66 @@ class PushRequest internal constructor(
         fun popCurrent(isPop: Boolean = true) = this.apply { this.isPopCurrent = isPop }
 
         /**
-         * 成功入栈后保留最近的 T 类型锚点及其以下页面，移除锚点与新页面之间的所有页面。
+         * 成功入栈后保留最近的 T 类型锚点及其以下页面，移除锚点与新页面之间的所有页面；
+         * asRoot = true 时锚点之下也一并移除，锚点提为新栈底。
          * 锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
          *
          * After a successful push, retains the nearest T anchor and everything below it, removing all pages
-         * between the anchor and the new entry. Trimming is skipped when the anchor is absent; mutually
+         * between the anchor and the new entry; asRoot = true also removes everything below the anchor,
+         * promoting it to the new stack root. Trimming is skipped when the anchor is absent; mutually
          * exclusive with cleanStack/popCurrent/result bindings.
          */
-        inline fun <reified T : Any> popUpTo() = popUpTo(T::class)
+        inline fun <reified T : Any> popUpTo(asRoot: Boolean = false) = popUpTo(T::class, asRoot)
 
         /**
-         * 成功入栈后保留最近的指定类型锚点及其以下页面，移除锚点与新页面之间的所有页面。
+         * 成功入栈后保留最近的指定类型锚点及其以下页面，移除锚点与新页面之间的所有页面；
+         * asRoot = true 时锚点之下也一并移除，锚点提为新栈底。
          * 锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
          *
          * After a successful push, retains the nearest anchor of the class and everything below it, removing
-         * all pages between the anchor and the new entry. Trimming is skipped when the anchor is absent;
+         * all pages between the anchor and the new entry; asRoot = true also removes everything below the
+         * anchor, promoting it to the new stack root. Trimming is skipped when the anchor is absent;
          * mutually exclusive with cleanStack/popCurrent/result bindings.
          *
          * @param clazz 锚点路由类型 / Anchor route class.
+         * @param asRoot 锚点提为新栈底 / Promotes the anchor to the new stack root.
          */
-        fun popUpTo(clazz: KClass<*>) = apply {
-            popUpTo = PopType.BackTo.PopDestination.ByClass(clazz)
+        fun popUpTo(clazz: KClass<*>, asRoot: Boolean = false) = apply {
+            popUpTo = PopUpToIntent(PopType.BackTo.PopDestination.ByClass(clazz), asRoot)
         }
 
         /**
          * 成功入栈后保留 URL 匹配类型的最近锚点及其以下页面，移除锚点与新页面之间的所有页面；
-         * 查询参数不参与匹配。锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
+         * asRoot = true 时锚点之下也一并移除，锚点提为新栈底。查询参数不参与匹配。
+         * 锚点不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
          *
          * After a successful push, retains the nearest anchor resolved by the URL and everything below it,
-         * removing all pages between the anchor and the new entry; query parameters are ignored. Trimming
+         * removing all pages between the anchor and the new entry; asRoot = true also removes everything
+         * below the anchor, promoting it to the new stack root. Query parameters are ignored. Trimming
          * is skipped when the anchor is absent; mutually exclusive with cleanStack/popCurrent/result bindings.
          *
          * @param url 用于查找锚点类型的 URL / URL resolving the anchor class.
+         * @param asRoot 锚点提为新栈底 / Promotes the anchor to the new stack root.
          */
-        fun popUpTo(url: String) = apply {
-            popUpTo = PopType.BackTo.PopDestination.ByUrl(url)
+        fun popUpTo(url: String, asRoot: Boolean = false) = apply {
+            popUpTo = PopUpToIntent(PopType.BackTo.PopDestination.ByUrl(url), asRoot)
         }
 
         /**
-         * 成功入栈后保留按 === 匹配的指定实例及其以下页面，移除该实例与新页面之间的所有页面。
+         * 成功入栈后保留按 === 匹配的指定实例及其以下页面，移除该实例与新页面之间的所有页面；
+         * asRoot = true 时实例之下也一并移除，实例提为新栈底。
          * 实例不在栈中时跳过修剪；与 cleanStack/popCurrent/结果绑定互斥。
          *
          * After a successful push, retains the exact instance matched by === and everything below it,
-         * removing all pages between it and the new entry. Trimming is skipped when the instance is absent;
+         * removing all pages between it and the new entry; asRoot = true also removes everything below
+         * the instance, promoting it to the new stack root. Trimming is skipped when the instance is absent;
          * mutually exclusive with cleanStack/popCurrent/result bindings.
          *
          * @param instance 栈中已有的锚点实例 / Existing anchor instance in the stack.
+         * @param asRoot 锚点提为新栈底 / Promotes the anchor to the new stack root.
          */
-        fun popUpTo(instance: IRouterEntryProvider) = apply {
-            popUpTo = PopType.BackTo.PopDestination.ByInstance(instance)
+        fun popUpTo(instance: IRouterEntryProvider, asRoot: Boolean = false) = apply {
+            popUpTo = PopUpToIntent(PopType.BackTo.PopDestination.ByInstance(instance), asRoot)
         }
 
         /**

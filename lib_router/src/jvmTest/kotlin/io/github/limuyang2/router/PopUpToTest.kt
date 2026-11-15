@@ -73,6 +73,33 @@ class PopUpToTest {
     }
 
     @Test
+    fun asRootClearsBelowAnchorAndPromotesAnchorToNewRoot() = withRouter { navigator, root ->
+        val home = PageA()
+        navigator.push { destination = home }
+        navigator.push { destination = PageB() }
+        runCurrent()
+        assertEquals(3, navigator.backStack.size)
+
+        val login = Login()
+        navigator.push { destination = login; popUpTo<PageA>(asRoot = true) }
+        runCurrent()
+
+        // 锚点之下（含原根）与夹层全部移除，锚点实例 === 提为新栈底。
+        assertEquals(2, navigator.backStack.size)
+        assertSame(home, navigator.backStack[0])
+        assertSame(login, navigator.backStack[1])
+
+        navigator.pop()
+        runCurrent()
+        assertSame(home, navigator.last())
+        // 锚点已成新根，继续 pop 撞根页保护。
+        navigator.pop()
+        runCurrent()
+        assertEquals(1, navigator.backStack.size)
+        assertSame(home, navigator.last())
+    }
+
+    @Test
     fun trimmedWaitingCallerSettlesCancelledAfterReturningToForeground() = withRouter { navigator, root ->
         val results = mutableListOf<RouteResult<Int>>()
         val a = PageA()

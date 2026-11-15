@@ -376,6 +376,17 @@ navigator.push {
 
 被移除的夹层页面按 `Cancelled` 结算；锚点不在栈中时跳过修剪、仅完成普通入栈；锚点为根页时结果为 `[根页, 新页]`，不会触发连根清。`popUpTo` 与 `isCleanStack`、`isPopCurrent`、`resultTo`/`onRouteResult` 互斥，组合配置会被拒绝。拦截器内可通过 `newBuilder().popUpTo(...)` 附加同一语义。
 
+只保留锚点和新页面、清掉锚点之下所有页（含原根）时，用 `asRoot = true` 把锚点提为新栈底：
+
+```kotlin
+navigator.push {
+    destination = LoginRoute()
+    popUpTo<HomeRoute>(asRoot = true)   // [Root, Home, A, B] -> [Home, Login]
+}
+```
+
+锚点实例按 `===` 保留；锚点成为新根后再 pop 会撞根页保护，与 `isCleanStack` 后新页成根是同一类状态。
+
 ### 返回与移除
 
 | 调用 | 行为 |

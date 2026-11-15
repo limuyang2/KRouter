@@ -20,7 +20,8 @@ package io.github.limuyang2.router
  * @param preventDuplicates 是否阻止栈顶相同类型页面重复跳转 / Whether duplicate push of the same route type at the top is prevented.
  * @param isCleanStack 是否在成功跳转后清空旧导航栈 / Whether old entries are cleared from the back stack after a successful push.
  * @param isPopCurrent 是否在成功打开新页面后关闭旧 current / Whether the previous current page is closed after opening the new destination.
- * @param popUpTo 锚点修剪意图；保留锚点及其以下页面 / Anchor trimming intent; retains the anchor and everything below it.
+ * @param popUpTo 锚点修剪意图；保留锚点及其以下页面，asRoot 时锚点提为新栈底 / Anchor trimming
+ * intent; retains the anchor and everything below it, or promotes the anchor to the root when asRoot.
  */
 class PushResponse internal constructor(
     val request: PushRequest,
@@ -32,6 +33,6 @@ class PushResponse internal constructor(
     val preventDuplicates: Boolean,
     val isCleanStack: Boolean,
     val isPopCurrent: Boolean,
-    internal val popUpTo: PopType.BackTo.PopDestination? = null,
+    internal val popUpTo: PopUpToIntent? = null,
     internal val isInterrupted: Boolean = false
 )

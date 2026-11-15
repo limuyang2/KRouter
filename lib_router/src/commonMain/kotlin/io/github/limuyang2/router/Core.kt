@@ -481,21 +481,25 @@ internal class Core(startDestination: Any) :
 
     /**
      * popUpTo push 时，保留锚点及其以下页面，移除锚点与新入栈页面之间的所有夹层页面；
-     * 被移除页面按 Cancelled 结算。锚点不在栈中时跳过修剪，仅完成普通入栈。
+     * asRoot 时锚点之下也一并移除，锚点提为新栈底。被移除页面按 Cancelled 结算；
+     * 锚点不在栈中时跳过修剪，仅完成普通入栈。
      */
     private fun trimAboveAnchorLocked(
-        anchor: PopType.BackTo.PopDestination,
+        intent: PopUpToIntent,
         pendingEvents: MutableList<BackStackEvent>,
     ) {
         // 新页已在栈顶，锚点查找排除栈顶自身。
         val anchorIndex = (0 until mBackStack.lastIndex)
-            .indexOfLast { matchDestination(mBackStack[it], anchor) }
+            .indexOfLast { matchDestination(mBackStack[it], intent.destination) }
         if (anchorIndex < 0) {
-            logE { "popUpTo 目标页面不在返回栈中，跳过修剪：[$anchor]" }
+            logE { "popUpTo 目标页面不在返回栈中，跳过修剪：[${intent.destination}]" }
             return
         }
 
-        for (index in mBackStack.lastIndex - 1 downTo anchorIndex + 1) {
+        // asRoot 时连锚点之下一起清，锚点提为新栈底。
+        val lowestRemoved = if (intent.asRoot) 0 else anchorIndex + 1
+        for (index in mBackStack.lastIndex - 1 downTo lowestRemoved) {
+            if (index == anchorIndex) continue
             val victim = mBackStack.removeAt(index)
             invalidatePopPlansForRemovedPage(victim)
             deliverResultForRemovedEntry(

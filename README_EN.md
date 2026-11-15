@@ -379,6 +379,17 @@ navigator.push {
 
 Removed in-between pages settle as `Cancelled`; a missing anchor skips trimming and falls back to a plain push; anchoring at the root yields `[root, new]` instead of clearing the root. `popUpTo` is mutually exclusive with `isCleanStack`, `isPopCurrent` and `resultTo`/`onRouteResult` — conflicting combinations are rejected. Inside interceptors the same intent can be attached via `newBuilder().popUpTo(...)`.
 
+To keep only the anchor and the new page, clearing everything below the anchor (including the original root), pass `asRoot = true` to promote the anchor to the new stack root:
+
+```kotlin
+navigator.push {
+    destination = LoginRoute()
+    popUpTo<HomeRoute>(asRoot = true)   // [Root, Home, A, B] -> [Home, Login]
+}
+```
+
+The anchor instance is retained by `===`; once the anchor becomes the new root, another pop hits root protection — the same class of state as a new page becoming the root after `isCleanStack`.
+
 ### Back and removal
 
 | Call | Behavior |
