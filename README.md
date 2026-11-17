@@ -7,7 +7,7 @@
 
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
-**项目状态：准备发布 1.4.0；Maven Central 当前已发布版本为 [1.3.1](https://central.sonatype.com/artifact/io.github.limuyang2/router)。**
+**项目状态：已发布 [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）。**
 
 ## 项目定位
 
@@ -43,7 +43,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 
 ## 安装
 
-KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前已发布版本为 1.3.1；以下配置示例使用准备发布的 1.4.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
+KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.4.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
 
 | 构件 | 坐标 | 说明 |
 | --- | --- | --- |

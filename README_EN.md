@@ -7,7 +7,7 @@
 
 A routing library for Kotlin Multiplatform and Compose Navigation 3. Through annotations, KSP, and Gradle module aggregation, it brings URLs, page instances, parameter injection, interceptors, and result delivery into a single navigation API.
 
-**Status: Preparing 1.4.0 for release; [1.3.1](https://central.sonatype.com/artifact/io.github.limuyang2/router) is the latest version published on Maven Central.**
+**Status: [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router) released on Maven Central.**
 
 ## About this project
 
@@ -43,7 +43,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 
 ## Installation
 
-KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router); the latest published version is 1.3.1. The examples below use the upcoming 1.4.0 release. The runtime library, KSP processor, and Gradle plugins ship with the same version — keep the three in sync.
+KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router); the current version is 1.4.0. The runtime library, KSP processor, and Gradle plugins ship with the same version — keep the three in sync.
 
 | Artifact | Coordinates | Notes |
 | --- | --- | --- |
