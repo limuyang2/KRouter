@@ -413,9 +413,17 @@ The semantics are a "pillar", not a "wall": `pop`/`remove`/`all()` selections ex
 | `navigator.pop(value)` | Closes the bound current page and returns a business value. |
 | `navigator.pop { to<HomeRoute>() }` | Keeps the most recent HomeRoute and removes the pages bound above it. |
 | `navigator.pop { last(UserRoute::class) }` | Removes the most recent UserRoute; pages above it are kept. |
+| `navigator.pop { last(page) }` | Removes the exact instance matched by `===`, even from the middle of the stack; other pages stay in place. |
 | `navigator.pop { all(UserRoute::class) }` | Removes all matching pages; if everything matches, the original root page is kept. |
 
 `to` accepts types, URLs, and page instances; `last` accepts types, type collections, URLs, and instances; `all` accepts types, type collections, and URLs. Instance selection uses `===`; URL selection matches by route type, and query parameters do not participate in page selection.
+
+`last(instance)` removes a single page from the middle of the stack without touching the others — useful for cleaning up only the entry page when a flow is terminated externally:
+
+```kotlin
+// Stack is [Home, List, Detail] and you hold the listPage instance:
+navigator.pop { last(listPage) }   // -> [Home, Detail]
+```
 
 `to` does nothing when unmatched or when the target is already on top. When only the root page remains, a normal back does not empty the navigation stack.
 

@@ -410,9 +410,17 @@ navigator.unprotect(LockScreenRoute::class)
 | `navigator.pop(value)` | 关闭绑定的当前页并返回业务值。 |
 | `navigator.pop { to<HomeRoute>() }` | 保留最近的 HomeRoute，移除其上方绑定的页面。 |
 | `navigator.pop { last(UserRoute::class) }` | 移除最近一个 UserRoute，其上方其他页面保留。 |
+| `navigator.pop { last(page) }` | 按 `===` 移除栈中的指定实例，即使它位于栈中间；其余页面保持原位。 |
 | `navigator.pop { all(UserRoute::class) }` | 移除所有匹配页面；全部命中时保留原根页。 |
 
 `to` 支持类型、URL 和页面实例；`last` 支持类型、类型集合、URL 和页面实例；`all` 支持类型、类型集合和 URL。按实例选择使用 `===`，URL 选择按路由类型匹配，查询参数不参与页面选择。
+
+`last(实例)` 可以移除栈中间的某一页而不动其他页面，适合子流程被外部终止时只清理入口页：
+
+```kotlin
+// 栈为 [Home, List, Detail]，持有 listPage 实例引用：
+navigator.pop { last(listPage) }   // -> [Home, Detail]
+```
 
 `to` 未匹配或目标已经位于栈顶时不执行。仅剩根页时，普通返回不会清空导航栈。
 
