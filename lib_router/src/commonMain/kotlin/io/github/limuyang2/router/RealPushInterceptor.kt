@@ -3,10 +3,11 @@ package io.github.limuyang2.router
 internal class RealPushInterceptor(private val core: Core) : IRouterPushInterceptor {
     override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
         val request = chain.request()
+        val destination = core.getClassInstance(request)
 
         return PushResponse(
             request,
-            destination = core.getClassInstance(request),
+            destination = destination,
             routeBeforeCallback = request.routeBeforeCallback,
             routeSuccessCallback = request.routeSuccessCallback,
             routeFailureCallback = request.routeFailureCallback,
@@ -15,6 +16,7 @@ internal class RealPushInterceptor(private val core: Core) : IRouterPushIntercep
             isCleanStack = request.isCleanStack,
             isPopCurrent = request.isPopCurrent,
             popUpTo = request.popUpTo,
+            singleTask = core.resolveSingleTaskEnabled(request, destination),
         )
     }
 }

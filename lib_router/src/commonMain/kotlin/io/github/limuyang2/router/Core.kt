@@ -21,6 +21,7 @@ private data class PushMutation(
     val isDuplicate: Boolean = false,
     val previousTopRouteForPopCurrent: IRouterEntryProvider? = null,
     val pendingEvents: List<BackStackEvent> = emptyList(),
+    val dispatchActions: List<() -> Unit> = emptyList(),
 )
 
 private data class PopMutation(
@@ -215,6 +216,19 @@ internal class Core(
             return
         }
 
+        // singleTask 是栈修剪意图，与其它修剪标志、栈顶去重及结果绑定互斥；按拦截器链解析后的生效值判定。
+        if (response.singleTask &&
+            (response.popUpTo != null || response.isCleanStack || response.isPopCurrent ||
+                response.preventDuplicates || shouldTrackResult(builder))
+        ) {
+            logE {
+                "路由跳转被拒绝：singleTask 不能与 popUpTo、isCleanStack、isPopCurrent、preventDuplicates、onRouteResult/resultTo 同时使用。"
+            }
+            response.routeFailureCallback?.invoke()
+            response.routeCompletedCallback?.invoke()
+            return
+        }
+
         val mutation = navigationLock.withLock {
             applyPushLocked(response, builder)
         }
@@ -225,7 +239,7 @@ internal class Core(
             return
         }
 
-        dispatchNavigationEffects(mutation.pendingEvents)
+        dispatchNavigationEffects(mutation.pendingEvents, mutation.dispatchActions)
 
         if (mutation.isSuccess) {
             response.routeSuccessCallback?.invoke()
@@ -313,6 +327,18 @@ internal class Core(
     ): PushMutation {
         val instance = response.destination
 
+        // singleTask：栈中已有同类型实例则移动已有实例到栈顶，未命中按普通 push 继续。
+        if (response.singleTask) {
+            val targetIndex = if (response.request.destination != null) {
+                mBackStack.indexOfFirst { it === instance }
+            } else {
+                mBackStack.indexOfLast { it::class == instance::class }
+            }
+            if (targetIndex >= 0) {
+                return applySingleTaskLocked(response, targetIndex)
+            }
+        }
+
         // 同一对象只能占据一个栈位置；不同实例即使 equals/contentKey 相同也允许入栈。
         if (mBackStack.any { it === instance }) {
             logI { "[${instance}] 跳转失败，该页面实例已在返回栈中！" }
@@ -367,6 +393,52 @@ internal class Core(
             isSuccess = true,
             previousTopRouteForPopCurrent = if (response.isPopCurrent) previousTopRoute else null,
             pendingEvents = pendingEvents,
+        )
+    }
+
+    /**
+     * singleTask 命中栈中已有实例时的原子栈变更：移除目标上方非受保护页面（按 Cancelled 结算），
+     * 再把目标实例移动到实际栈顶；受保护页面不被移除，最终位于目标之下——与 isCleanStack/popUpTo
+     * 修剪后新页在顶同口径。目标已是实际栈顶时幂等成功，不产生任何栈变更与事件。
+     * 本次请求解析出的新实例被丢弃，参数不重新注入旧实例。
+     */
+    private fun applySingleTaskLocked(
+        response: PushResponse,
+        targetIndex: Int,
+    ): PushMutation {
+        val target = mBackStack[targetIndex]
+
+        // 目标已是实际栈顶：无栈变更，幂等成功。
+        if (targetIndex == mBackStack.lastIndex) {
+            logI { "singleTask：[${target.debugLabel()}] 已在栈顶，幂等成功。" }
+            return PushMutation(isSuccess = true)
+        }
+
+        response.routeBeforeCallback?.invoke()
+        val pendingEvents = mutableListOf<BackStackEvent>()
+
+        // 与 popUpTo 修剪同口径：目标上方非受保护页面按 Cancelled 结算，受保护页面保留。
+        for (index in mBackStack.lastIndex downTo targetIndex + 1) {
+            if (isProtected(mBackStack[index])) continue
+            val victim = mBackStack.removeAt(index)
+            invalidatePopPlansForRemovedPage(victim)
+            deliverResultForRemovedEntry(
+                targetContentKey = victim.contentKey(),
+                routeResult = RouteResult.Cancelled,
+            )
+            pendingEvents.add(BackStackEvent.Pop(victim, mBackStack.toList()))
+        }
+
+        mBackStack.removeAt(targetIndex)
+        mBackStack.add(target)
+        pendingEvents.add(BackStackEvent.Push(target, mBackStack.toList()))
+        // 目标已成为实际栈顶，消费其 inbox 中待派发结果（与 pop 路径只消费实际栈顶同口径）。
+        val dispatchActions = drainDeliverableResultsLocked(target.contentKey())
+        logI { "singleTask：复用栈中已有实例并移至栈顶 [${target.debugLabel()}]" }
+        return PushMutation(
+            isSuccess = true,
+            pendingEvents = pendingEvents,
+            dispatchActions = dispatchActions,
         )
     }
 
@@ -640,6 +712,7 @@ internal class Core(
             isCleanStack = builder.isCleanStack,
             isPopCurrent = builder.isPopCurrent,
             popUpTo = builder.popUpTo,
+            singleTask = builder.singleTask,
             routeBeforeCallback = builder.routeBeforeCallback,
             routeSuccessCallback = builder.routeSuccessCallback,
             routeFailureCallback = builder.routeFailureCallback,
@@ -667,6 +740,7 @@ internal class Core(
             isCleanStack = builder.isCleanStack,
             isPopCurrent = builder.isPopCurrent,
             popUpTo = builder.popUpTo,
+            singleTask = builder.singleTask,
             routeBeforeCallback = builder.routeBeforeCallback,
             routeSuccessCallback = builder.routeSuccessCallback,
             routeFailureCallback = builder.routeFailureCallback,
@@ -752,18 +826,32 @@ internal class Core(
     }
 
     private fun getPushResponseWithGreenChannel(request: PushRequest): PushResponse {
+        val destination = getClassInstance(request)
         return PushResponse(
             request = request,
-            destination = getClassInstance(request),
+            destination = destination,
             preventDuplicates = request.preventDuplicates,
             isCleanStack = request.isCleanStack,
             isPopCurrent = request.isPopCurrent,
             popUpTo = request.popUpTo,
+            singleTask = resolveSingleTaskEnabled(request, destination),
             routeBeforeCallback = request.routeBeforeCallback,
             routeSuccessCallback = request.routeSuccessCallback,
             routeFailureCallback = request.routeFailureCallback,
             routeCompletedCallback = request.routeCompletedCallback,
         )
+    }
+
+    /**
+     * 合并 singleTask 生效值：请求显式设置 > 目标页面 @Router 注解默认值 > false。
+     * 在最终目标解析完成后调用，拦截器 redirect 换目标后自然按新目标的注解默认值重算。
+     */
+    internal fun resolveSingleTaskEnabled(
+        request: PushRequest,
+        destination: IRouterEntryProvider,
+    ): Boolean {
+        request.singleTask?.let { return it }
+        return getRouterInfo(destination::class)?.singleTask ?: false
     }
 
     /** 在导航锁内解析具体实例；所有页面选择只在这里发生。 */

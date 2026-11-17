@@ -22,6 +22,10 @@ package io.github.limuyang2.router
  * @param isPopCurrent 是否在成功打开新页面后关闭旧 current / Whether the previous current page is closed after opening the new destination.
  * @param popUpTo 锚点修剪意图；保留锚点及其以下页面，asRoot 时锚点提为新栈底 / Anchor trimming
  * intent; retains the anchor and everything below it, or promotes the anchor to the root when asRoot.
+ * @param singleTask 合并后的生效值（builder 显式设置 > 目标页面注解默认 > false）：为 true 时栈中已有
+ * 同类型实例则移动已有实例到栈顶而非新压实例 / Resolved effective value (explicit builder setting >
+ * destination annotation default > false): when true, an existing same-class instance in the stack is
+ * moved to the top instead of pushing a new instance.
  */
 class PushResponse internal constructor(
     val request: PushRequest,
@@ -34,5 +38,6 @@ class PushResponse internal constructor(
     val isCleanStack: Boolean,
     val isPopCurrent: Boolean,
     internal val popUpTo: PopUpToIntent? = null,
+    internal val singleTask: Boolean = false,
     internal val isInterrupted: Boolean = false
 )

@@ -31,6 +31,14 @@ class PushRequest internal constructor(
     val isCleanStack: Boolean,
     val isPopCurrent: Boolean,
     internal val popUpTo: PopUpToIntent? = null,
+    /**
+     * 调用方的 singleTask 意图：null 表示未设置（按目标页面 @Router 注解的默认值处理），
+     * true 启用，false 显式关闭以覆盖注解默认值。
+     *
+     * Caller's singleTask intent: null means unset (falling back to the destination's @Router
+     * default), true enables it, false explicitly disables it to override the annotation default.
+     */
+    val singleTask: Boolean? = null,
 ) {
     /**
      * 创建保留当前配置的新构建器，不修改原请求
@@ -54,6 +62,7 @@ class PushRequest internal constructor(
         isCleanStack: Boolean = this.isCleanStack,
         isPopCurrent: Boolean = this.isPopCurrent,
         popUpTo: PopUpToIntent? = this.popUpTo,
+        singleTask: Boolean? = this.singleTask,
     ): PushRequest {
         return PushRequest(
             originalUri,
@@ -67,7 +76,8 @@ class PushRequest internal constructor(
             preventDuplicates = preventDuplicates,
             isCleanStack = isCleanStack,
             isPopCurrent = isPopCurrent,
-            popUpTo = popUpTo
+            popUpTo = popUpTo,
+            singleTask = singleTask
         )
     }
 
@@ -90,6 +100,7 @@ class PushRequest internal constructor(
         private var isCleanStack: Boolean = request.isCleanStack
         private var isPopCurrent: Boolean = request.isPopCurrent
         private var popUpTo: PopUpToIntent? = request.popUpTo
+        private var singleTask: Boolean? = request.singleTask
 
         /**
          * 设置成功跳转后仅保留新页面
@@ -177,6 +188,15 @@ class PushRequest internal constructor(
          * Controls same-class duplicate prevention at the top; pushing the same object twice is always rejected.
          */
         fun preventDuplicates(prevent: Boolean = true) = this.apply { this.preventDuplicates = prevent }
+
+        /**
+         * 设置 singleTask 意图：null（未调用本方法）时采用目标页面 @Router 注解的默认值，
+         * 传入 false 可显式关闭以覆盖注解默认值。
+         *
+         * Sets the singleTask intent: when null (this method unset) the destination's @Router
+         * default applies; pass false to explicitly disable it, overriding the annotation default.
+         */
+        fun singleTask(enabled: Boolean = true) = this.apply { this.singleTask = enabled }
 
         /**
          * 设置实际入栈前调用的回调
@@ -288,7 +308,8 @@ class PushRequest internal constructor(
                     preventDuplicates = preventDuplicates,
                     isCleanStack = isCleanStack,
                     isPopCurrent = isPopCurrent,
-                    popUpTo = popUpTo
+                    popUpTo = popUpTo,
+                    singleTask = singleTask
                 )
             } else if (schema != null || host != null || path != null) {
                 val uri = (request.uri?.buildUpon() ?: RouteUri.Builder())
@@ -306,7 +327,8 @@ class PushRequest internal constructor(
                     preventDuplicates = preventDuplicates,
                     isCleanStack = isCleanStack,
                     isPopCurrent = isPopCurrent,
-                    popUpTo = popUpTo
+                    popUpTo = popUpTo,
+                    singleTask = singleTask
                 )
             } else {
                 if (destination == null && uri == null) {
@@ -321,7 +343,8 @@ class PushRequest internal constructor(
                     preventDuplicates = preventDuplicates,
                     isCleanStack = isCleanStack,
                     isPopCurrent = isPopCurrent,
-                    popUpTo = popUpTo
+                    popUpTo = popUpTo,
+                    singleTask = singleTask
                 )
             }
         }

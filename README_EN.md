@@ -7,7 +7,7 @@
 
 A routing library for Kotlin Multiplatform and Compose Navigation 3. Through annotations, KSP, and Gradle module aggregation, it brings URLs, page instances, parameter injection, interceptors, and result delivery into a single navigation API.
 
-**Status: [1.3.1](https://central.sonatype.com/artifact/io.github.limuyang2/router) released on Maven Central.**
+**Status: Preparing 1.4.0 for release; [1.3.1](https://central.sonatype.com/artifact/io.github.limuyang2/router) is the latest version published on Maven Central.**
 
 ## About this project
 
@@ -21,7 +21,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 - **Start destination**: Resolved and seeded synchronously during construction — the first frame shows a real page with no startup flash and no push interceptors involved.
 - **Navigation**: Supports page instances and URLs; `@RouterParam` injects constructor parameters and properties.
 - **Result delivery**: Distinguishes success, no result, cancellation, and type mismatch; Compose receives results through a Consumer.
-- **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, and `popUpTo` anchor trimming with root-page protection; protected pages can never be removed wherever they sit in the stack.
+- **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, `popUpTo` anchor trimming, `singleTask` reuse-to-top, and root-page protection; protected pages can never be removed wherever they sit in the stack.
 - **Interceptors**: Global, page-declared, and owner-bound Push / Pop interceptors, with the executing `Navigator` available on the chain.
 - **Multi-module**: Aggregates module indices from the host's actual compile dependencies, handling transitive dependencies and diamond-dependency deduplication.
 - **Cross-platform**: A shared routing API targeting Android, JVM Desktop, iOS, Kotlin/JS, and Wasm.
@@ -43,7 +43,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 
 ## Installation
 
-KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router); the current version is 1.3.1. The runtime library, KSP processor, and Gradle plugins ship with the same version — keep the three in sync.
+KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router); the latest published version is 1.3.1. The examples below use the upcoming 1.4.0 release. The runtime library, KSP processor, and Gradle plugins ship with the same version — keep the three in sync.
 
 | Artifact | Coordinates | Notes |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router.module") version "1.3.1"
+    id("io.github.limuyang2.router.module") version "1.4.0"
     id("com.google.devtools.ksp") version "<version matching your Kotlin>"
 }
 
@@ -86,7 +86,7 @@ kotlin {
             dependencies {
                 // Expose the runtime library with api so the host can aggregate
                 // this module's index and its transitive dependencies.
-                api("io.github.limuyang2:router:1.3.1")
+                api("io.github.limuyang2:router:1.4.0")
             }
         }
     }
@@ -95,8 +95,8 @@ kotlin {
 // Configure KSP per target / compilation; Android and iOS shown here.
 // Pure JVM modules can use ksp(...) directly.
 dependencies {
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.3.1")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.3.1")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
 }
 
 // Optional: override the default moduleId (defaults to group:name).
@@ -109,15 +109,15 @@ router {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router") version "1.3.1"
+    id("io.github.limuyang2.router") version "1.4.0"
     id("com.google.devtools.ksp") version "<version matching your Kotlin>"
 }
 
 dependencies {
     implementation(project(":feature-product"))
-    implementation("io.github.limuyang2:router:1.3.1")
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.3.1")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.3.1")
+    implementation("io.github.limuyang2:router:1.4.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
 }
 
 // Aggregates the indices of current compile dependencies into RouterAggregatedRegistry.
@@ -337,7 +337,7 @@ For example, `demo://app/article?id=7&source=home` injects both `id` and `source
 
 ### Page identity
 
-The same object cannot exist in the back stack twice; identity is determined by `===`. This constraint always applies, including when `greenChannel` is enabled or `preventDuplicates` is disabled. An object can enter the stack again after leaving it.
+The same object cannot exist in the back stack twice; identity is determined by `===`. This constraint always applies, including when `greenChannel` is enabled or `preventDuplicates` is disabled. An object can enter the stack again after leaving it. For a same-class top of stack, use `preventDuplicates` to reject the push, or `singleTask` to reuse the existing instance and bring it back to the top (see Push configuration).
 
 Different objects may enter the stack even with identical parameters. `contentKey()` identifies a page's content scope; equal keys share that scope's state, ViewModels, and result ownership — provide distinct, stable keys when independent state is required.
 
@@ -364,6 +364,7 @@ navigator.push {
 | `isCleanStack` | Removes old pages after a successful push, keeping only the new page. |
 | `isPopCurrent` | Closes the old current page after the new page opens successfully. |
 | `popUpTo(clazz / url / instance)` | Retains the anchor and everything below it after a successful push, removing pages between the anchor and the new entry. |
+| `singleTask(enabled)` | Reuse-to-top: when the target class already exists in the stack, moves the existing instance to the top instead of pushing a new one. See below. |
 | `greenChannel` | Skips Push interceptors; target resolution and instance-identity checks still run. |
 
 `isPopCurrent` closes the old page, and the new page does not inherit its result relationships. If the old page was being awaited for a result, that request settles as `Cancelled`; `isPopCurrent = true` cannot be combined with `resultTo` or `onRouteResult`.
@@ -389,6 +390,31 @@ navigator.push {
 ```
 
 The anchor instance is retained by `===`; once the anchor becomes the new root, another pop hits root protection — the same class of state as a new page becoming the root after `isCleanStack`.
+
+### singleTask reuse-to-top
+
+`singleTask` is the "reuse when already stacked" push intent: if the target class already exists in the back stack, the existing instance is moved back to the top instead of pushing a new one — instance identity (`===`) and page state are preserved, and the current push's parameters are not re-injected into the old instance.
+
+```kotlin
+// Detail is already in the stack when this runs
+navigator.push {
+    url = "demo://app/detail?itemId=7"
+    singleTask()   // [Detail, A, B] -> [Detail]; the original instance is reused, parameters are not refreshed
+}
+
+// Page-level default: applies to every push targeting this page (including deep links)
+@Router(scheme = "demo", host = "app", path = "/home", singleTask = true)
+class HomeRoute : IRouterEntryProvider
+```
+
+Matching and settlement rules:
+
+- URL pushes match by target class and take the topmost instance in the stack; `push(instance)` matches that exact instance by `===` — passing a not-yet-stacked new instance never reuses another same-class instance and falls back to a plain push.
+- An already-top target is an idempotent success: no stack change and no events; success and completed callbacks still fire.
+- Pages above the target are removed and settle as `Cancelled`; protected pages are kept but the target still moves to the **actual top** of the stack (protected pages end below the target — the same convention as cleanStack/popUpTo leaving the new entry on top). Once the target is the actual top it immediately consumes any Cancelled results it receives.
+- Configuration precedence: explicit builder setting (`singleTask()` / `singleTask(false)`) > `@Router(singleTask = ...)` default > off. Repeated `@Router` declarations on one class must agree on this value, otherwise compilation fails.
+- Mutually exclusive with `popUpTo`, `isCleanStack`, `isPopCurrent`, `preventDuplicates` and `resultTo`/`onRouteResult`; rejection is decided on the merged effective value (annotation defaults trigger it too). Interceptors can attach or disable the intent via `newBuilder().singleTask(...)`.
+- Versus `preventDuplicates`: the latter is reject-style — a same-class top makes the push fail and trigger the failure callback; `singleTask` is reuse-style — the request is accepted and the original instance is moved back to the top. The reuse-style "singleTop at top" semantics is covered by `singleTask`'s idempotent branch.
 
 ### Protected pages
 

@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
+## [1.4.0] - 2026-11-18
+
+### 新增 / Added
+
+- **Push 新增 `singleTask` 复用拉顶**：支持通过 PushBuilder 显式设置，或由 `@Router(singleTask = true)` 声明页面默认。URL push 按类型复用栈中最靠上的实例，实例 push 按 `===` 匹配；被移除的夹层按 `Cancelled` 结算，目标实例身份和页面状态保留。栈顶命中幂等成功；与 `popUpTo`、`isCleanStack`、`isPopCurrent`、结果绑定及 `preventDuplicates` 互斥。重复 `@Router` 声明的 `singleTask` 值不一致时 KSP 报错。
+  - **Push adds `singleTask` reuse-to-top**: Set it explicitly through PushBuilder or declare a page default with `@Router(singleTask = true)`. URL pushes reuse the topmost same-class instance; instance pushes match by `===`. Removed pages settle as `Cancelled`, while the target instance and its page state are preserved. A topmost hit succeeds idempotently. It is mutually exclusive with `popUpTo`, `isCleanStack`, `isPopCurrent`, result bindings, and `preventDuplicates`. KSP reports an error when repeated `@Router` declarations disagree on the value.
+
+### 升级说明 / Upgrade notes
+
+- `ParseRouterInfo` 保留旧参数列表的构造函数签名；新增属性改变了 data class 的 `copy` ABI。直接调用 `ParseRouterInfo.copy()` 的预编译客户端需重新编译。
+  - `ParseRouterInfo` retains the constructor with the legacy parameter list; the new property changes the data class `copy` ABI. Pre-compiled clients that call `ParseRouterInfo.copy()` must be recompiled.
+
 ## [1.3.1] - 2026-11-15
 
 ### 新增 / Added

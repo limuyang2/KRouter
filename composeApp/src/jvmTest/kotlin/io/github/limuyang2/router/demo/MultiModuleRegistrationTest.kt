@@ -97,6 +97,24 @@ class MultiModuleRegistrationTest {
         assertEquals(response, assertIs<RouteResult.Success<HelpResult>>(results.single()).value)
     }
 
+    /** The @Router(singleTask = true) annotation must flow through KSP generation into push behavior. */
+    @Test
+    fun generatedSingleTaskAnnotationMovesExistingInstanceToTop() = withNavigator { navigator ->
+        val single = Router.SingleTask()
+        navigator.push(single)
+        navigator.push(Router.SingleTaskMiddle())
+        navigator.push(Router.SingleTaskMiddle())
+        runCurrent()
+        assertEquals(4, navigator.backStack.size)
+
+        // Annotation default applies without a builder flag: the existing instance is reused.
+        navigator.push("test://test/single-task")
+        runCurrent()
+
+        assertEquals(2, navigator.backStack.size)
+        assertSame(single, navigator.last())
+    }
+
     private fun withNavigator(block: suspend TestScope.(Navigator) -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {

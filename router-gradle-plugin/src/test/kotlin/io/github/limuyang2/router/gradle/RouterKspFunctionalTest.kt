@@ -145,6 +145,44 @@ class RouterKspFunctionalTest {
         assertMatchesCleanBuild(root)
     }
 
+    @Test fun `singleTask annotation flows into registration and repeatable values must agree`() {
+        val root = fixture(lateRoutes = false)
+        source(root, "SinglePage.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.Router(host="example.com", path="/single", singleTask=true)
+            class SinglePage
+            @io.github.limuyang2.router.anno.Router(host="example.com", path="/plain")
+            class PlainPage
+        """)
+        run(root, ":host:compileKotlinDesktop")
+        val provider = featureProvider(root)
+        val single = provider.substringAfter("sample.SinglePage::class to ParseRouterInfo(").substringBefore("sample.PlainPage::class to ParseRouterInfo(")
+        assertTrue("singleTask = true missing from SinglePage registration:\n$single", single.contains("singleTask = true"))
+        val plain = provider.substringAfter("sample.PlainPage::class to ParseRouterInfo(").substringBefore("override fun routeAliasesKV")
+        assertTrue("singleTask = false missing from PlainPage registration:\n$plain", plain.contains("singleTask = false"))
+
+        // Repeated @Router declarations with agreeing values compile and register normally.
+        source(root, "DualPage.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.Router(host="example.com", path="/dual-a", singleTask=true)
+            @io.github.limuyang2.router.anno.Router(host="example.com", path="/dual-b", singleTask=true)
+            class DualPage
+        """)
+        run(root, ":host:compileKotlinDesktop")
+        assertTrue(featureProvider(root).contains("sample.DualPage::class"))
+
+        // Disagreeing values across repeated declarations must fail the build.
+        source(root, "DualPage.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.Router(host="example.com", path="/dual-a", singleTask=true)
+            @io.github.limuyang2.router.anno.Router(host="example.com", path="/dual-b")
+            class DualPage
+        """)
+        val failed = GradleRunner.create().withProjectDir(root).withPluginClasspath()
+            .withArguments(":feature:kspKotlinBackend", "--console=plain", "--max-workers=2", "-Dorg.gradle.jvmargs=-Xmx1g").buildAndFail()
+        assertTrue("Expected the singleTask consistency error:\n${failed.output}", failed.output.contains("singleTask 值不一致"))
+    }
+
     @Test fun `incremental multi-round generation retains deferred routes`() {
         val root = incrementalFixture(lateRoutes = true)
         run(root, ":host:compileKotlinDesktop")
@@ -558,7 +596,8 @@ class RouterKspFunctionalTest {
         """)
         write("api/src/main/kotlin/io/github/limuyang2/router/anno/Router.kt", """
             package io.github.limuyang2.router.anno
-            annotation class Router(val scheme: String="", val host: String="", val path: String="", val desc: String="")
+            @Repeatable
+            annotation class Router(val scheme: String="", val host: String="", val path: String="", val desc: String="", val singleTask: Boolean = false)
         """)
         write("api/src/main/kotlin/io/github/limuyang2/router/Api.kt", """
             package io.github.limuyang2.router
@@ -583,7 +622,8 @@ class RouterKspFunctionalTest {
             package io.github.limuyang2.router.info
             import io.github.limuyang2.router.IRouterInstance
             class ParseRouterInfo(val url: String, val scheme: String, val host: String, val path: String, val desc: String,
-                val pushInterceptors: List<Any>, val popInterceptors: List<Any>, val instanceProvider: IRouterInstance)
+                val pushInterceptors: List<Any>, val popInterceptors: List<Any>, val instanceProvider: IRouterInstance,
+                val singleTask: Boolean = false)
         """)
         write("feature/build.gradle", """
             plugins { id 'org.jetbrains.kotlin.multiplatform'; id 'com.google.devtools.ksp'; id 'io.github.limuyang2.router.module'; id 'maven-publish' }

@@ -20,6 +20,7 @@ import io.github.limuyang2.router.IRouterInstance
  * @param pushInterceptors 绑定的页面级 Push 拦截器列表 / List of bound page-level push interceptors.
  * @param popInterceptors 绑定的页面级 Pop 拦截器列表 / List of bound page-level pop interceptors.
  * @param instanceProvider 实例工厂，用于通过参数创建该路由类的实例 / Instance provider creating instances with parameters.
+ * @param singleTask 页面级 singleTask 默认值，push 未显式设置时生效 / Page-level singleTask default applied when a push leaves the intent unset.
  */
 data class ParseRouterInfo(
     val url: String,
@@ -29,5 +30,32 @@ data class ParseRouterInfo(
     val desc: String,
     val pushInterceptors: List<ParsePagePushInterceptorInfo>,
     val popInterceptors: List<ParsePagePopInterceptorInfo>,
-    val instanceProvider: IRouterInstance
-)
+    val instanceProvider: IRouterInstance,
+    val singleTask: Boolean = false,
+) {
+    /**
+     * 保留旧参数列表的构造函数签名，兼容仍调用该构造函数的预编译注册代码。
+     *
+     * Legacy constructor signature for pre-compiled registration code that still invokes it.
+     */
+    constructor(
+        url: String,
+        scheme: String,
+        host: String,
+        path: String,
+        desc: String,
+        pushInterceptors: List<ParsePagePushInterceptorInfo>,
+        popInterceptors: List<ParsePagePopInterceptorInfo>,
+        instanceProvider: IRouterInstance,
+    ) : this(
+        url = url,
+        scheme = scheme,
+        host = host,
+        path = path,
+        desc = desc,
+        pushInterceptors = pushInterceptors,
+        popInterceptors = popInterceptors,
+        instanceProvider = instanceProvider,
+        singleTask = false,
+    )
+}

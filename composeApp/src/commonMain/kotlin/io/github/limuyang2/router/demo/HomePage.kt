@@ -58,10 +58,11 @@ fun HomePage() {
             "导航栈" -> {
                 DemoCase("10 · 清栈与根页保护", "isCleanStack / pop", "清栈后只剩一个验证页；根页返回不会清空导航栈，可重建首页继续验证。") { navigator.push(Router.Verification("stack")) }
                 DemoCase("11 · 替换当前页", "isPopCurrent = true", "在 B 打开 C 并移除 B，栈中不再包含 B，返回 C 后回到 A。") { navigator.push(Router.PopBugA()) }
+                DemoCase("12 · singleTask 复用拉顶", "@Router(singleTask = true)", "先进入 SingleTask 页并叠加中间页；再次 URL 打开时复用栈中原实例回到顶部，中间页被移除，计数状态保留。") { navigator.push("test://test/single-task") }
             }
             "跨模块" -> {
-                DemoCase("12 · 跨模块 URL 注册", "test://modules/product?id=42", "商品页显示 id=42；打开共享帮助页并返回后，显示“已解决”和接收次数。") { navigator.push("test://modules/product?id=42") }
-                DemoCase("13 · 跨模块实例注册", "AccountPage(name=小明)", "账户页显示“小明”；通过 URL 打开共享帮助页并接收结果。") { navigator.push(AccountPage(name = "小明")) }
+                DemoCase("13 · 跨模块 URL 注册", "test://modules/product?id=42", "商品页显示 id=42；打开共享帮助页并返回后，显示“已解决”和接收次数。") { navigator.push("test://modules/product?id=42") }
+                DemoCase("14 · 跨模块实例注册", "AccountPage(name=小明)", "账户页显示“小明”；通过 URL 打开共享帮助页并接收结果。") { navigator.push(AccountPage(name = "小明")) }
             }
         }
     }

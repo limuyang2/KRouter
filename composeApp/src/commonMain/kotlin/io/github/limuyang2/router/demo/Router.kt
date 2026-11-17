@@ -137,4 +137,20 @@ class Router {
         }
     }
 
+    @Router(host = "test", path = "single-task", singleTask = true)
+    class SingleTask : IRouterEntryProvider {
+        @Composable
+        override fun UI() {
+            SingleTaskPage(this)
+        }
+    }
+
+    @Router(host = "test", path = "single-task-middle")
+    class SingleTaskMiddle : IRouterEntryProvider {
+        @Composable
+        override fun UI() {
+            SingleTaskMiddlePage()
+        }
+    }
+
 }

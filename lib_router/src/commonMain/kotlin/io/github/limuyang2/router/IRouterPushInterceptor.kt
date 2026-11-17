@@ -70,6 +70,7 @@ fun IRouterPushInterceptor.Chain.interrupt(): PushResponse {
         preventDuplicates = false,
         isCleanStack = false,
         isPopCurrent = false,
+        singleTask = false,
         isInterrupted = true
     )
 }

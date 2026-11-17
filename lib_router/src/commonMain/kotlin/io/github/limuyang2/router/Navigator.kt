@@ -507,6 +507,36 @@ class Navigator(startDestination: Any, builder: Builder.() -> Unit = {}) {
         fun popUpTo(instance: IRouterEntryProvider, asRoot: Boolean = false) {
             popUpTo = PopUpToIntent(PopType.BackTo.PopDestination.ByInstance(instance), asRoot)
         }
+
+        /**
+         * singleTask 跳转意图（三态）：未调用本方法时采用目标页面 `@Router(singleTask = ...)` 注解的默认值；
+         * `singleTask()` 开启，`singleTask(false)` 显式关闭以覆盖注解默认值。
+         *
+         * 生效值为 true 时：栈中已存在同类型实例则移动已有实例到实际栈顶（保留实例身份与页面状态，
+         * 本次请求解析出的参数不会重新注入旧实例），其上方页面按 Cancelled 结算移除（受保护页面不被
+         * 移除，最终位于目标之下，与 isCleanStack/popUpTo 修剪后新页在顶同口径）；目标已是栈顶则幂等
+         * 成功；栈中不存在时按普通 push 入栈。`push(instance)` 场景按 `===` 匹配该实例本身，传入未入栈
+         * 的新实例不复用其它同类型实例。
+         * 与 popUpTo、isCleanStack、isPopCurrent、onRouteResult/resultTo、preventDuplicates 互斥。
+         *
+         * Tri-state singleTask intent: leaving this unset applies the destination's
+         * `@Router(singleTask = ...)` default; `singleTask()` enables it and `singleTask(false)` explicitly
+         * disables it, overriding the annotation default.
+         *
+         * When effective: if a same-class instance already exists in the back stack, that existing instance
+         * is moved to the actual top of the stack (instance identity and page state are preserved; the current
+         * push parameters are not re-injected) and the pages above it are removed as Cancelled (protected
+         * pages are kept, ending below the target — the same convention as cleanStack/popUpTo leaving the
+         * new entry on top); an already-top target is an idempotent success; an absent target pushes
+         * normally. `push(instance)` matches that exact instance by `===`; a not-yet-stacked new instance
+         * never reuses another same-class instance. Mutually exclusive with popUpTo, isCleanStack,
+         * isPopCurrent, onRouteResult/resultTo and preventDuplicates.
+         */
+        fun singleTask(enabled: Boolean = true) = apply { singleTask = enabled }
+        /**
+         * @see singleTask
+         */
+        internal var singleTask: Boolean? = null
         /**
          * 跳过 Push 拦截器，仍保留目标解析、实例去重和栈变更规则。
          *

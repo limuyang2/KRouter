@@ -111,6 +111,7 @@ internal class RouteProcessor(
 
                 var mPopInterceptors: List<KSType> = emptyList()
                 var mPopInterceptorPriorities: List<Int> = emptyList()
+                var singleTask = false
 
                 routerAnnotation.arguments.forEach { argument ->
                     when (argument.name?.asString()) {
@@ -118,6 +119,7 @@ internal class RouteProcessor(
                         "host" -> host = argument.value.toString()
                         "path" -> path = argument.value.toString()
                         "desc" -> desc = argument.value.toString()
+                        "singleTask" -> singleTask = argument.value as Boolean
                         "pushInterceptors" -> {
                             mPushInterceptors = argument.value as List<KSType>
                         }
@@ -196,6 +198,7 @@ internal class RouteProcessor(
                         clazzPackageName = elementPackageName,
                         clazzQualifiedName = elementQualifiedName,
                         instanceProviderString = instanceProviderString,
+                        singleTask = singleTask,
                     )
 
                     tempRouteInfoList.add(temp)
@@ -243,6 +246,13 @@ internal class RouteProcessor(
                 routeKeys[key] = info.clazzQualifiedName
             }
         }
+
+        // 检测同一类多条 @Router 声明的 singleTask 一致性（省略参数按 false 处理）
+        tempRouteInfoList.groupBy { it.clazzQualifiedName }
+            .filterValues { infos -> infos.map { it.singleTask }.distinct().size > 1 }
+            .forEach { (clazzQualifiedName, _) ->
+                logger.error("RouteProcessor: 类 [$clazzQualifiedName] 的多条 @Router 注解 singleTask 值不一致，请统一设置。")
+            }
 
         return ModuleRouterProviderFileRouterInfo(
             dependencies = providerDependenciesKSFile,
@@ -484,6 +494,10 @@ internal data class TempRouteInfo(
     val clazzPackageName: String,
     val clazzQualifiedName: String,
     val instanceProviderString: String,
+    /**
+     * 页面级 singleTask 默认值 / Page-level singleTask default.
+     */
+    val singleTask: Boolean,
 ) {
     /**
      * 构建 URL 的代码表达式，在 TempRouteInfo 创建时一次性生成。

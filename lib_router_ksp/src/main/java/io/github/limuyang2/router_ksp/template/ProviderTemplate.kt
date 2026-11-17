@@ -140,7 +140,8 @@ private fun List<TempRouteInfo>.contentMasterMap(): String {
                 }
             })" else "emptyList()"
         },
-                instanceProvider = ${it.instanceProviderString}
+                instanceProvider = ${it.instanceProviderString},
+                singleTask = ${it.singleTask}
             )
         """.trim()
     }

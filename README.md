@@ -7,7 +7,7 @@
 
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
-**项目状态：已发布 [1.3.1](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）。**
+**项目状态：准备发布 1.4.0；Maven Central 当前已发布版本为 [1.3.1](https://central.sonatype.com/artifact/io.github.limuyang2/router)。**
 
 ## 项目定位
 
@@ -21,7 +21,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 - **初始路由**：构造期间同步解析并种入栈底，首帧即真实页面，无启动闪屏，也不经过 Push 拦截器。
 - **跳转方式**：支持页面实例和 URL，使用 `@RouterParam` 注入构造参数及属性。
 - **结果回传**：区分成功、无结果、取消和类型不匹配；Compose 使用 Consumer 接收结果。
-- **返回控制**：关闭当前页、回退到指定页、移除匹配页、清栈、`popUpTo` 锚点修剪及根页保护；受保护页面无论在栈内哪个位置都不可被移除。
+- **返回控制**：关闭当前页、回退到指定页、移除匹配页、清栈、`popUpTo` 锚点修剪、`singleTask` 复用拉顶及根页保护；受保护页面无论在栈内哪个位置都不可被移除。
 - **拦截器**：支持全局、页面声明和 Owner 外置绑定的 Push / Pop 拦截器，链上可获取执行当前操作的 `Navigator`。
 - **多模块**：按宿主实际编译依赖聚合模块索引，处理传递依赖和菱形依赖去重。
 - **跨平台**：共享路由 API，目标包括 Android、JVM Desktop、iOS、Kotlin/JS 和 Wasm。
@@ -43,7 +43,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 
 ## 安装
 
-KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.3.1。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
+KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前已发布版本为 1.3.1；以下配置示例使用准备发布的 1.4.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
 
 | 构件 | 坐标 | 说明 |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router.module") version "1.3.1"
+    id("io.github.limuyang2.router.module") version "1.4.0"
     id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
 }
 
@@ -85,7 +85,7 @@ kotlin {
         commonMain {
             dependencies {
                 // 使用 api 暴露运行时库，宿主才能聚合本模块及其传递依赖的索引。
-                api("io.github.limuyang2:router:1.3.1")
+                api("io.github.limuyang2:router:1.4.0")
             }
         }
     }
@@ -93,8 +93,8 @@ kotlin {
 
 // KSP 按 target / compilation 配置，这里以 Android 和 iOS 为例；纯 JVM 模块可直接使用 ksp(...)。
 dependencies {
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.3.1")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.3.1")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
 }
 
 // 可选：覆盖默认 moduleId（默认取 group:name）。
@@ -107,15 +107,15 @@ router {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router") version "1.3.1"
+    id("io.github.limuyang2.router") version "1.4.0"
     id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
 }
 
 dependencies {
     implementation(project(":feature-product"))
-    implementation("io.github.limuyang2:router:1.3.1")
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.3.1")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.3.1")
+    implementation("io.github.limuyang2:router:1.4.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
 }
 
 // 聚合当前编译依赖的模块索引，生成 RouterAggregatedRegistry。
@@ -334,7 +334,7 @@ class ArticleRoute(
 
 ### 页面身份
 
-同一个对象不能重复存在于返回栈中，判断依据为 `===`。这一约束始终生效，包括开启 `greenChannel` 或关闭 `preventDuplicates` 时。对象离栈后可以再次入栈。
+同一个对象不能重复存在于返回栈中，判断依据为 `===`。这一约束始终生效，包括开启 `greenChannel` 或关闭 `preventDuplicates` 时。对象离栈后可以再次入栈。栈顶同类型的「拒收」用 `preventDuplicates`，「复用已有实例拉回顶部」用 `singleTask`（见跳转配置）。
 
 不同对象即使参数相同也可以入栈。`contentKey()` 标识页面内容作用域；相同 key 会共享该作用域的状态、ViewModel 和结果归属，需要独立状态时应提供不同且稳定的 key。
 
@@ -361,6 +361,7 @@ navigator.push {
 | `isCleanStack` | 成功跳转后移除旧页面，仅保留新页面。 |
 | `isPopCurrent` | 成功打开新页面后关闭旧 current。 |
 | `popUpTo(clazz / url / instance)` | 成功入栈后保留锚点及其以下页面，移除锚点与新页面之间的夹层。 |
+| `singleTask(enabled)` | 复用拉顶：目标类型已在栈中时移动已有实例到栈顶而非新压实例，详见下文。 |
 | `greenChannel` | 跳过 Push 拦截器，仍执行目标解析和实例唯一性检查。 |
 
 `isPopCurrent` 是关闭旧页面的操作，新页面不会继承旧页面的结果关系。旧页面被上游等待结果时，该请求会结算为 `Cancelled`；`isPopCurrent = true` 不能同时绑定 `resultTo` 或 `onRouteResult`。
@@ -386,6 +387,31 @@ navigator.push {
 ```
 
 锚点实例按 `===` 保留；锚点成为新根后再 pop 会撞根页保护，与 `isCleanStack` 后新页成根是同一类状态。
+
+### singleTask 复用拉顶
+
+`singleTask` 是「栈中已有则复用」的跳转意图：目标类型已在栈中时，移动已有实例回到顶部而不是新压一个实例——实例身份（`===`）与页面状态保留，本次请求解析出的参数不会注入旧实例。
+
+```kotlin
+// 调用时栈中已有 Detail
+navigator.push {
+    url = "demo://app/detail?itemId=7"
+    singleTask()   // [Detail, A, B] -> [Detail]，复用原实例，参数不刷新
+}
+
+// 页面级默认：对该页面的所有 push 生效（含深链等入口）
+@Router(scheme = "demo", host = "app", path = "/home", singleTask = true)
+class HomeRoute : IRouterEntryProvider
+```
+
+匹配与结算规则：
+
+- URL 跳转按目标类型匹配，取栈中最靠上的一个；`push(instance)` 按 `===` 匹配该实例本身，传入未入栈的新实例不会复用其它同类型实例，按普通 push 入栈。
+- 目标已是栈顶时幂等成功：无栈变更、不发事件，成功与完成回调照常触发。
+- 目标上方页面按 `Cancelled` 结算移除；受保护页面不被移除，但目标仍移动到**实际栈顶**（受保护页面位于目标之下，与 `isCleanStack`/`popUpTo` 修剪后新页在顶同口径）。目标成为栈顶后立即消费其收到的 Cancelled 结果。
+- 配置优先级：builder 显式设置（`singleTask()` / `singleTask(false)`）> `@Router(singleTask = ...)` 默认值 > 关闭。同一类多条 `@Router` 声明的该值必须一致，否则编译失败。
+- 与 `popUpTo`、`isCleanStack`、`isPopCurrent`、`preventDuplicates`、`resultTo`/`onRouteResult` 互斥；组合是否拒绝按合并后的生效值判定（注解默认同样触发）。拦截器内可通过 `newBuilder().singleTask(...)` 附加或关闭该意图。
+- 与 `preventDuplicates` 的分工：后者是拒收式——栈顶同类型时本次跳转失败并触发失败回调；`singleTask` 是复用式——收下请求并移动原实例回顶。已在栈顶时的「复用式 singleTop」语义由 `singleTask` 的幂等分支覆盖。
 
 ### 受保护页面
 
