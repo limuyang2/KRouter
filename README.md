@@ -7,7 +7,7 @@
 
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
-**项目状态：已发布 [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）。**
+**项目状态：已发布 [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）；[1.5.0](CHANGELOG.md) 已打包待上传。**
 
 ## 项目定位
 
@@ -22,7 +22,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 - **跳转方式**：支持页面实例和 URL，使用 `@RouterParam` 注入构造参数及属性。
 - **结果回传**：区分成功、无结果、取消和类型不匹配；Compose 使用 Consumer 接收结果。
 - **返回控制**：关闭当前页、回退到指定页、移除匹配页、清栈、`popUpTo` 锚点修剪、`singleTask` 复用拉顶及根页保护；受保护页面无论在栈内哪个位置都不可被移除。
-- **拦截器**：支持全局、页面声明和 Owner 外置绑定的 Push / Pop 拦截器，链上可获取执行当前操作的 `Navigator`。
+- **拦截器**：支持全局、页面声明和 Owner 外置绑定的 Push / Pop 拦截器，链上可获取执行当前操作的 `Navigator`；`interceptorResolver` 可接入 DI 容器（如 Koin）提供拦截器实例。
 - **多模块**：按宿主实际编译依赖聚合模块索引，处理传递依赖和菱形依赖去重。
 - **跨平台**：共享路由 API，目标包括 Android、JVM Desktop、iOS、Kotlin/JS 和 Wasm。
 
@@ -43,7 +43,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 
 ## 安装
 
-KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.4.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
+KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.5.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
 
 | 构件 | 坐标 | 说明 |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router.module") version "1.4.0"
+    id("io.github.limuyang2.router.module") version "1.5.0"
     id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
 }
 
@@ -85,7 +85,7 @@ kotlin {
         commonMain {
             dependencies {
                 // 使用 api 暴露运行时库，宿主才能聚合本模块及其传递依赖的索引。
-                api("io.github.limuyang2:router:1.4.0")
+                api("io.github.limuyang2:router:1.5.0")
             }
         }
     }
@@ -93,8 +93,8 @@ kotlin {
 
 // KSP 按 target / compilation 配置，这里以 Android 和 iOS 为例；纯 JVM 模块可直接使用 ksp(...)。
 dependencies {
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.5.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.5.0")
 }
 
 // 可选：覆盖默认 moduleId（默认取 group:name）。
@@ -107,15 +107,15 @@ router {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router") version "1.4.0"
+    id("io.github.limuyang2.router") version "1.5.0"
     id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
 }
 
 dependencies {
     implementation(project(":feature-product"))
-    implementation("io.github.limuyang2:router:1.4.0")
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
+    implementation("io.github.limuyang2:router:1.5.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.5.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.5.0")
 }
 
 // 聚合当前编译依赖的模块索引，生成 RouterAggregatedRegistry。
@@ -661,6 +661,36 @@ return chain.proceed(chain.request().withResult(newValue))
 ```
 
 `CURRENT` 支持改写结果；`BACK_TO` 需要原请求已配置结果 key 和类型；`REMOVE` 不支持业务结果。每个 Pop 拦截器阶段最多调用一次 `proceed` 或 `redirect`，也可以通过 `chain.interrupt()` 中断。选择条件改变时重新解析目标；相同条件保留原绑定实例。
+
+### DI 接入（interceptorResolver）
+
+注解声明的拦截器默认由生成代码无参构造。构造带依赖的拦截器（如经 Koin 注入 `LoginRepository`）时，在 `initRouter` 中注册解析器，生成代码会优先经它获取实例：
+
+```kotlin
+@RouterGlobalPushInterceptor(priority = 1)
+class LoginGateInterceptor(
+    private val loginRepository: LoginRepository, // DI 构造注入
+) : IRouterPushInterceptor {
+    override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse =
+        chain.proceed(chain.request())
+}
+
+initRouter {
+    interceptorResolver { clazz ->
+        koin.getOrNull<Any>(clazz) // 未命中返回 null，走无参构造兜底
+    }
+}
+```
+
+解析规则：
+
+- resolver 返回实例则采用；实例由容器管理 scope——Koin `single` 跨 `Navigator` 共享，`factory` 每个 Navigator 一个。
+- 返回 null 或未注册 resolver 时，走生成代码的无参构造兜底；不配置 resolver 的行为与旧版本一致。
+- 拦截器类没有可从生成代码调用的无参构造（构造参数无默认值，或构造器为 private/protected）时，生成代码不含兜底，实例只能由 resolver 提供；未配置或未命中会在 `Navigator` 构造时抛出 `IllegalStateException`。
+- `object` 拦截器不经过 resolver，保持直接引用。
+- 手写 `ModuleRouter` 也可调用 `resolvePushInterceptor` / `resolvePopInterceptor` 获得同样的解析行为。
+- 拦截器未实现对应接口会在编译期报错（KSP 校验全局、Owner、`@Router` 参数三种绑定方式）。
+- resolver 随 `initRouter` 首次配置生效，需在首个 `Navigator` 构造前就位。
 
 接口和更多约束见 [运行库 API 注释](lib_router/src/commonMain/kotlin/io/github/limuyang2/router)。
 

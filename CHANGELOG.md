@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
+## [1.5.0] - 2026-11-18
+
+### 新增 / Added
+
+- **拦截器 DI 接入（`interceptorResolver`）**：`initRouter { interceptorResolver { clazz -> koin.getOrNull(clazz) } }` 注册实例解析器后，注解声明的拦截器（全局 / Owner / `@Router` 参数三种绑定）生成代码优先经它构造实例，DI 构造注入由此可用；解析器返回 null 或未注册时走生成代码的无参构造兜底，不配置行为与旧版一致。没有可从生成代码调用的无参构造的拦截器类（构造参数无默认值，或构造器为 private/protected）生成代码不含兜底，实例必须由解析器提供，未命中在 `Navigator` 构造期抛 `IllegalStateException`（KSP 同时给出编译警告）；`object` 拦截器不参与解析。手写 `ModuleRouter` 可调用公开函数 `resolvePushInterceptor` / `resolvePopInterceptor` 获得同样行为。
+  - **Interceptor DI integration (`interceptorResolver`)**: after registering `initRouter { interceptorResolver { clazz -> koin.getOrNull(clazz) } }`, generated code for annotated interceptors (global / owner / `@Router`-parameter bindings) consults the resolver first when constructing instances, enabling DI constructor injection; a null result or an absent resolver falls back to the generated no-arg construction, keeping the no-resolver behavior identical to earlier versions. Classes without a no-arg construction callable from generated code (constructor parameters without defaults, or private/protected constructors) generate no fallback: the resolver must supply the instance or `Navigator` construction fails with an `IllegalStateException` (KSP also emits a compile warning); `object` interceptors bypass resolution. Hand-written `ModuleRouter`s get the same behavior via the public `resolvePushInterceptor` / `resolvePopInterceptor` functions.
+
+### 变更 / Changed
+
+- **拦截器接口校验统一补齐**：全局 `@RouterGlobalPush/PopInterceptor` 与 `@Router(pushInterceptors=/popInterceptors=)` 参数绑定的拦截器类未实现对应接口时，KSP 现在直接编译报错（此前生成代码在 Kotlin 编译期以类型不匹配失败，报错信息晦涩）；Owner 绑定原有校验保持不变。DI-only 路径必须依赖该校验把错误留在编译期。
+  - **Uniform interceptor interface validation**: interceptor classes under global `@RouterGlobalPush/PopInterceptor` or `@Router(pushInterceptors=/popInterceptors=)` parameter bindings now fail KSP compilation directly when they do not implement the required interface (previously the generated code failed Kotlin compilation with an obscure type mismatch); the existing owner-binding validation is unchanged. The resolver-only path relies on this check to surface errors at compile time.
+
 ## [1.4.0] - 2026-11-18
 
 ### 新增 / Added

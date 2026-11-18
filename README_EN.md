@@ -7,7 +7,7 @@
 
 A routing library for Kotlin Multiplatform and Compose Navigation 3. Through annotations, KSP, and Gradle module aggregation, it brings URLs, page instances, parameter injection, interceptors, and result delivery into a single navigation API.
 
-**Status: [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router) released on Maven Central.**
+**Status: [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router) released on Maven Central; [1.5.0](CHANGELOG.md) packaged and pending upload.**
 
 ## About this project
 
@@ -22,7 +22,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 - **Navigation**: Supports page instances and URLs; `@RouterParam` injects constructor parameters and properties.
 - **Result delivery**: Distinguishes success, no result, cancellation, and type mismatch; Compose receives results through a Consumer.
 - **Back control**: Close the current page, roll back to a specific page, remove matching pages, clear the stack, `popUpTo` anchor trimming, `singleTask` reuse-to-top, and root-page protection; protected pages can never be removed wherever they sit in the stack.
-- **Interceptors**: Global, page-declared, and owner-bound Push / Pop interceptors, with the executing `Navigator` available on the chain.
+- **Interceptors**: Global, page-declared, and owner-bound Push / Pop interceptors, with the executing `Navigator` available on the chain; `interceptorResolver` plugs DI containers (e.g. Koin) into interceptor construction.
 - **Multi-module**: Aggregates module indices from the host's actual compile dependencies, handling transitive dependencies and diamond-dependency deduplication.
 - **Cross-platform**: A shared routing API targeting Android, JVM Desktop, iOS, Kotlin/JS, and Wasm.
 
@@ -43,7 +43,7 @@ KRouter provides route resolution, navigation-stack operations, and module regis
 
 ## Installation
 
-KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router); the current version is 1.4.0. The runtime library, KSP processor, and Gradle plugins ship with the same version — keep the three in sync.
+KRouter is published to [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router); the current version is 1.5.0. The runtime library, KSP processor, and Gradle plugins ship with the same version — keep the three in sync.
 
 | Artifact | Coordinates | Notes |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router.module") version "1.4.0"
+    id("io.github.limuyang2.router.module") version "1.5.0"
     id("com.google.devtools.ksp") version "<version matching your Kotlin>"
 }
 
@@ -86,7 +86,7 @@ kotlin {
             dependencies {
                 // Expose the runtime library with api so the host can aggregate
                 // this module's index and its transitive dependencies.
-                api("io.github.limuyang2:router:1.4.0")
+                api("io.github.limuyang2:router:1.5.0")
             }
         }
     }
@@ -95,8 +95,8 @@ kotlin {
 // Configure KSP per target / compilation; Android and iOS shown here.
 // Pure JVM modules can use ksp(...) directly.
 dependencies {
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.5.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.5.0")
 }
 
 // Optional: override the default moduleId (defaults to group:name).
@@ -109,15 +109,15 @@ router {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router") version "1.4.0"
+    id("io.github.limuyang2.router") version "1.5.0"
     id("com.google.devtools.ksp") version "<version matching your Kotlin>"
 }
 
 dependencies {
     implementation(project(":feature-product"))
-    implementation("io.github.limuyang2:router:1.4.0")
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.4.0")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.4.0")
+    implementation("io.github.limuyang2:router:1.5.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.5.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.5.0")
 }
 
 // Aggregates the indices of current compile dependencies into RouterAggregatedRegistry.
@@ -664,6 +664,36 @@ return chain.proceed(chain.request().withResult(newValue))
 ```
 
 `CURRENT` supports rewriting the result; `BACK_TO` requires the original request to carry a result key and type; `REMOVE` does not support business results. Each Pop interceptor stage may call `proceed` or `redirect` at most once, and may call `chain.interrupt()` to abort. Changing the selection criteria re-resolves targets; identical criteria keep the originally bound instances.
+
+### DI integration (interceptorResolver)
+
+Annotated interceptors are constructed by generated no-arg code by default. For interceptors with constructor dependencies (e.g. a Koin-injected `LoginRepository`), register a resolver in `initRouter`; generated code consults it first when constructing instances:
+
+```kotlin
+@RouterGlobalPushInterceptor(priority = 1)
+class LoginGateInterceptor(
+    private val loginRepository: LoginRepository, // DI constructor injection
+) : IRouterPushInterceptor {
+    override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse =
+        chain.proceed(chain.request())
+}
+
+initRouter {
+    interceptorResolver { clazz ->
+        koin.getOrNull<Any>(clazz) // a miss returns null and falls back to no-arg construction
+    }
+}
+```
+
+Resolution rules:
+
+- A resolver-provided instance wins; its scope belongs to the container — a Koin `single` is shared across `Navigator`s, a `factory` yields one per Navigator.
+- Returning null (or registering no resolver) falls back to the generated no-arg construction; behavior without a resolver matches earlier versions.
+- A class without a no-arg construction callable from generated code (constructor parameters without defaults, or private/protected constructors) generates no fallback, so only the resolver can supply it; if absent or missing, `Navigator` construction throws an `IllegalStateException`.
+- `object` interceptors bypass the resolver and keep their direct reference.
+- Hand-written `ModuleRouter`s can call `resolvePushInterceptor` / `resolvePopInterceptor` for the same resolution behavior.
+- An interceptor not implementing the required interface fails compilation (KSP validates all three binding styles: global, owner, and `@Router` parameters).
+- The resolver takes effect with the first `initRouter` call and must be in place before the first `Navigator` is constructed.
 
 See the [runtime API docs](lib_router/src/commonMain/kotlin/io/github/limuyang2/router) for interfaces and further constraints.
 
