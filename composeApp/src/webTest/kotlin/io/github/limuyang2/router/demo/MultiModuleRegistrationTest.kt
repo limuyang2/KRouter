@@ -18,6 +18,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /** Uses the actual generated host registry and the three separately compiled feature modules. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,6 +67,16 @@ class MultiModuleRegistrationTest {
         assertSame(account, navigator.last())
         assertEquals(1, results.size)
         assertEquals(response, assertIs<RouteResult.Success<HelpResult>>(results.single()).value)
+    }
+
+    /** 注解声明的 DI-only 拦截器（构造带参）必须经 interceptorResolver 解析并进入真实拦截链。 */
+    @Test
+    fun annotatedDiOnlyInterceptorResolvesThroughResolverIntoChain() = withNavigator { navigator ->
+        assertTrue(DemoDependencyBox.resolutions > 0, "生成代码未经过 interceptorResolver 解析")
+        val hitsBefore = DemoDependencyBox.diPushHits
+        navigator.push("test://modules/account")
+        runCurrent()
+        assertTrue(DemoDependencyBox.diPushHits > hitsBefore, "resolver 提供的拦截器未执行")
     }
 
     private fun withNavigator(block: suspend TestScope.(Navigator) -> Unit) = runTest {

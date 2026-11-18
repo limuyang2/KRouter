@@ -142,26 +142,40 @@ internal class RouteProcessor(
                 // 处理拦截器
                 var pushInterceptors = emptyList<TempPageInterceptor>()
                 if (mPushInterceptors.isNotEmpty()) {
-                    pushInterceptors = mPushInterceptors.mapIndexed { index, it ->
+                    pushInterceptors = mPushInterceptors.mapIndexedNotNull { index, it ->
                         val decl = it.declaration as KSClassDeclaration
                         val name = decl.qualifiedName!!.asString()
+                        val contract = decl.resolveInterceptorContract(
+                            logger = logger,
+                            annotationLabel = "@Router(pushInterceptors)",
+                            interfaceQualifiedName = "io.github.limuyang2.router.IRouterPushInterceptor",
+                        )
+                        if (!contract.implementsInterface) return@mapIndexedNotNull null
                         TempPageInterceptor(
                             priority = mPushInterceptorPriorities.getOrElse(index) { 10 },
                             clazzQualifiedName = name,
-                            classKind = decl.classKind
+                            classKind = decl.classKind,
+                            noArgConstruction = contract.noArgConstruction,
                         )
                     }.sortedBy { it.priority }
                 }
 
                 var popInterceptors = emptyList<TempPageInterceptor>()
                 if (mPopInterceptors.isNotEmpty()) {
-                    popInterceptors = mPopInterceptors.mapIndexed { index, it ->
+                    popInterceptors = mPopInterceptors.mapIndexedNotNull { index, it ->
                         val decl = it.declaration as KSClassDeclaration
                         val name = decl.qualifiedName!!.asString()
+                        val contract = decl.resolveInterceptorContract(
+                            logger = logger,
+                            annotationLabel = "@Router(popInterceptors)",
+                            interfaceQualifiedName = "io.github.limuyang2.router.IRouterPopInterceptor",
+                        )
+                        if (!contract.implementsInterface) return@mapIndexedNotNull null
                         TempPageInterceptor(
                             priority = mPopInterceptorPriorities.getOrElse(index) { 10 },
                             clazzQualifiedName = name,
-                            classKind = decl.classKind
+                            classKind = decl.classKind,
+                            noArgConstruction = contract.noArgConstruction,
                         )
                     }.sortedBy { it.priority }
                 }
@@ -519,4 +533,8 @@ internal data class TempPageInterceptor(
     val priority: Int = 0,
     val clazzQualifiedName: String,
     val classKind: ClassKind,
+    /**
+     * 是否可用无参构造；false 时生成代码不含兜底，实例由 interceptorResolver 提供
+     */
+    val noArgConstruction: Boolean,
 )

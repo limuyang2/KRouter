@@ -64,6 +64,8 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            // 真实 Koin 容器验证 interceptorResolver 的 Koin 接法；仅测试作用域，运行时不依赖 Koin。
+            implementation(libs.koin.core)
         }
 
         androidMain.dependencies {

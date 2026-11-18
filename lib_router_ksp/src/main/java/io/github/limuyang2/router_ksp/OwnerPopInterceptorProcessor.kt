@@ -57,11 +57,12 @@ internal class OwnerPopInterceptorProcessor(
             } ?: continue
 
             val elementQualifiedName = element.qualifiedName?.asString() ?: continue
-            if (!element.implementsType("io.github.limuyang2.router.IRouterPopInterceptor")) {
-                logger.error(
-                    "RouteProcessor: @RouterOwnerPopInterceptor target [$elementQualifiedName] must implement IRouterPopInterceptor.",
-                    element
-                )
+            val contract = element.resolveInterceptorContract(
+                logger = logger,
+                annotationLabel = "@RouterOwnerPopInterceptor",
+                interfaceQualifiedName = "io.github.limuyang2.router.IRouterPopInterceptor",
+            )
+            if (!contract.implementsInterface) {
                 continue
             }
 
@@ -89,6 +90,7 @@ internal class OwnerPopInterceptorProcessor(
                         priority = priorities.getOrElse(index) { 10 },
                         clazzQualifiedName = elementQualifiedName,
                         classKind = element.classKind,
+                        noArgConstruction = contract.noArgConstruction,
                     )
                 )
             }
@@ -104,14 +106,6 @@ internal class OwnerPopInterceptorProcessor(
             dependencies = providerDependenciesKSFile,
             ownerPopInterceptors = ownerPopMap,
         )
-    }
-
-    private fun KSClassDeclaration.implementsType(qualifiedName: String): Boolean {
-        return superTypes.any { typeRef ->
-            val declaration = typeRef.resolve().declaration
-            declaration.qualifiedName?.asString() == qualifiedName ||
-                    (declaration as? KSClassDeclaration)?.implementsType(qualifiedName) == true
-        }
     }
 
     private inline fun <reified T> Any?.asListOf(): List<T> {

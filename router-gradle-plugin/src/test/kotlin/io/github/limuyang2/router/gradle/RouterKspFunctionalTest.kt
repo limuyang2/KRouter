@@ -105,8 +105,10 @@ class RouterKspFunctionalTest {
             file.writeText(file.readText().replace("=[1]", "=[7]").replace("priority=1", "priority=7"))
             run(root, ":host:compileKotlinDesktop")
             val provider = featureProvider(root)
-            val registration = if (name.startsWith("Owner")) "priority = 7, interceptor = sample.$name()"
-                else "interceptor = sample.$name(), priority = 7"
+            val direction = if (name.endsWith("Push")) "Push" else "Pop"
+            val resolve = "io.github.limuyang2.router.resolve${direction}Interceptor(sample.$name::class) { sample.$name() }"
+            val registration = if (name.startsWith("Owner")) "priority = 7, interceptor = $resolve"
+                else "interceptor = $resolve, priority = 7"
             assertTrue("Updated $name registration missing:\n$provider", provider.contains(registration))
             interceptors.keys.forEach { assertTrue(provider.contains("sample.$it()")) }
         }
@@ -143,6 +145,59 @@ class RouterKspFunctionalTest {
         assertFalse(withoutInterceptors.contains("entry<sample.EntryPage>"))
         assertTrue(withoutInterceptors.contains("sample.EntryPage::class"))
         assertMatchesCleanBuild(root)
+    }
+
+    @Test fun `interceptor resolution wraps construction and enforces interface contract`() {
+        val root = incrementalFixture()
+        interceptorApi(root)
+        source(root, "Repo.kt", "package sample\nclass Repo")
+        // DI-only：构造带参且无默认值，生成代码不得含无参兜底，实例必须由 interceptorResolver 提供。
+        source(root, "DiPush.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor(priority=2)
+            class DiPush(val repo: Repo) : io.github.limuyang2.router.IRouterPushInterceptor
+        """, sourceSet = "backendMain")
+        // 全默认值参数：可用无参构造，包 resolver 并保留兜底。
+        source(root, "DefaultCtor.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor(priority=3)
+            class DefaultCtor(val x: Int = 1) : io.github.limuyang2.router.IRouterPushInterceptor
+        """, sourceSet = "backendMain")
+        // private 无参构造：生成代码（同模块不同包）不可调用，归入 resolver-only，无兜底。
+        source(root, "PrivCtor.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor(priority=4)
+            class PrivCtor private constructor() : io.github.limuyang2.router.IRouterPushInterceptor
+        """, sourceSet = "backendMain")
+        // internal 构造：与生成代码同模块，可调用，保留兜底。
+        source(root, "InternalCtor.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor(priority=5)
+            class InternalCtor internal constructor() : io.github.limuyang2.router.IRouterPushInterceptor
+        """, sourceSet = "backendMain")
+        run(root, ":host:compileKotlinDesktop")
+        val provider = featureProvider(root)
+        assertTrue("Resolver-only wiring missing:\n$provider",
+            provider.contains("interceptor = io.github.limuyang2.router.resolvePushInterceptor(sample.DiPush::class), priority = 2"))
+        assertFalse("DI-only interceptor must not carry a no-arg fallback:\n$provider", provider.contains("DiPush()"))
+        assertTrue("Default-parameter interceptor must keep its fallback:\n$provider",
+            provider.contains("io.github.limuyang2.router.resolvePushInterceptor(sample.DefaultCtor::class) { sample.DefaultCtor() }"))
+        assertTrue("Private-constructor interceptor must be resolver-only:\n$provider",
+            provider.contains("interceptor = io.github.limuyang2.router.resolvePushInterceptor(sample.PrivCtor::class), priority = 4"))
+        assertFalse("Private constructor must not generate a fallback call:\n$provider", provider.contains("PrivCtor()"))
+        assertTrue("Internal constructor stays callable as fallback:\n$provider",
+            provider.contains("io.github.limuyang2.router.resolvePushInterceptor(sample.InternalCtor::class) { sample.InternalCtor() }"))
+        assertMatchesCleanBuild(root)
+
+        // 全局拦截器未实现接口：与 Owner 注解同口径的编译期报错。
+        source(root, "NotAnInterceptor.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor
+            class NotAnInterceptor
+        """, sourceSet = "backendMain")
+        val invalid = GradleRunner.create().withProjectDir(root).withPluginClasspath()
+            .withArguments(":feature:kspKotlinBackend", "--console=plain", "--max-workers=2", "-Dorg.gradle.jvmargs=-Xmx1g").buildAndFail()
+        assertTrue(invalid.output.contains("must implement IRouterPushInterceptor"))
     }
 
     @Test fun `singleTask annotation flows into registration and repeatable values must agree`() {
@@ -509,6 +564,10 @@ class RouterKspFunctionalTest {
                 class EntryBuilder {
                     inline fun <reified T> entry(noinline clazzContentKey: (T) -> Any, noinline metadata: (T) -> Map<String, Any>, noinline content: (T) -> Unit) {}
                 }
+                fun resolvePushInterceptor(clazz: KClass<*>, fallback: () -> IRouterPushInterceptor): IRouterPushInterceptor = fallback()
+                fun resolvePushInterceptor(clazz: KClass<*>): IRouterPushInterceptor = error("interceptorResolver required")
+                fun resolvePopInterceptor(clazz: KClass<*>, fallback: () -> IRouterPopInterceptor): IRouterPopInterceptor = fallback()
+                fun resolvePopInterceptor(clazz: KClass<*>): IRouterPopInterceptor = error("interceptorResolver required")
                 typealias EntryProviderInstaller = EntryBuilder.() -> Unit
             """.trimIndent())
             .replace("class GlobalPushInterceptorInfo", "class GlobalPushInterceptorInfo(val interceptor: IRouterPushInterceptor, val priority: Int)")

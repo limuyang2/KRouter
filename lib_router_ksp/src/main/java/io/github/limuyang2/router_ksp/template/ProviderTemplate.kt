@@ -3,6 +3,7 @@ package io.github.limuyang2.router_ksp.template
 import com.google.devtools.ksp.symbol.ClassKind
 import io.github.limuyang2.router_ksp.TempEntryInfo
 import io.github.limuyang2.router_ksp.TempGlobalInterceptor
+import io.github.limuyang2.router_ksp.TempPageInterceptor
 import io.github.limuyang2.router_ksp.TempRouteInfo
 
 internal fun createProviderTemplate(
@@ -69,12 +70,12 @@ class $className : ModuleRouter {
         "return emptyList()"
     } else {
         """return listOf(
-            ${globalPushInterceptors.interceptorString("GlobalPushInterceptorInfo")}
+            ${globalPushInterceptors.interceptorString("GlobalPushInterceptorInfo", "io.github.limuyang2.router.resolvePushInterceptor")}
         )"""
     }
 }
     }
-    
+
     /**
      * 获取全局pop拦截器列表
      */
@@ -84,7 +85,7 @@ class $className : ModuleRouter {
         "return emptyList()"
     } else {
         """return listOf(
-            ${globalPopInterceptors.interceptorString("GlobalPopInterceptorInfo")}
+            ${globalPopInterceptors.interceptorString("GlobalPopInterceptorInfo", "io.github.limuyang2.router.resolvePopInterceptor")}
         )"""
     }
 }
@@ -125,7 +126,7 @@ private fun List<TempRouteInfo>.contentMasterMap(): String {
                 it.pushInterceptors.joinToString(
                     separator = ", "
                 ) { interceptor ->
-                    val instantiation = if (interceptor.classKind == ClassKind.OBJECT) interceptor.clazzQualifiedName else "${interceptor.clazzQualifiedName}()"
+                    val instantiation = interceptor.instantiationCode("io.github.limuyang2.router.resolvePushInterceptor")
                     "io.github.limuyang2.router.info.ParsePagePushInterceptorInfo(priority = ${interceptor.priority}, interceptor = $instantiation)"
                 }
             })" else "emptyList()"
@@ -135,7 +136,7 @@ private fun List<TempRouteInfo>.contentMasterMap(): String {
                 it.popInterceptors.joinToString(
                     separator = ", "
                 ) { interceptor ->
-                    val instantiation = if (interceptor.classKind == ClassKind.OBJECT) interceptor.clazzQualifiedName else "${interceptor.clazzQualifiedName}()"
+                    val instantiation = interceptor.instantiationCode("io.github.limuyang2.router.resolvePopInterceptor")
                     "io.github.limuyang2.router.info.ParsePagePopInterceptorInfo(priority = ${interceptor.priority}, interceptor = $instantiation)"
                 }
             })" else "emptyList()"
@@ -159,16 +160,34 @@ private fun List<TempRouteInfo>.contentAliasesMap(): String {
 
 
 
-private fun List<TempGlobalInterceptor>.interceptorString(infoClassName: String): String {
+private fun List<TempGlobalInterceptor>.interceptorString(infoClassName: String, resolveFunction: String): String {
     return this.joinToString(separator = ", \n        ") {
-        val instantiation = if (it.classKind == ClassKind.OBJECT) {
-            it.clazzQualifiedName
-        } else {
-            "${it.clazzQualifiedName}()"
-        }
-        "$infoClassName(interceptor = $instantiation, priority = ${it.priority})"
+        "$infoClassName(interceptor = ${it.instantiationCode(resolveFunction)}, priority = ${it.priority})"
     }
 }
+
+/**
+ * 拦截器实例化代码三态：object 直接引用；无参构造类包 resolver 加兜底；
+ * DI-only 类（无无参构造）仅 resolver，运行时必须命中 interceptorResolver。
+ */
+private fun interceptorInstantiationCode(
+    clazzQualifiedName: String,
+    classKind: ClassKind,
+    noArgConstruction: Boolean,
+    resolveFunction: String,
+): String {
+    return when {
+        classKind == ClassKind.OBJECT -> clazzQualifiedName
+        noArgConstruction -> "$resolveFunction(${clazzQualifiedName}::class) { $clazzQualifiedName() }"
+        else -> "$resolveFunction(${clazzQualifiedName}::class)"
+    }
+}
+
+private fun TempGlobalInterceptor.instantiationCode(resolveFunction: String) =
+    interceptorInstantiationCode(clazzQualifiedName, classKind, noArgConstruction, resolveFunction)
+
+private fun TempPageInterceptor.instantiationCode(resolveFunction: String) =
+    interceptorInstantiationCode(clazzQualifiedName, classKind, noArgConstruction, resolveFunction)
 
 private fun List<TempEntryInfo>.entryString(): String {
     return this.joinToString(separator = "\n        ") {

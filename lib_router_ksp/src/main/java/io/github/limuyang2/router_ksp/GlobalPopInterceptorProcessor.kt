@@ -81,6 +81,15 @@ internal class GlobalPopInterceptorProcessor(
             val elementQualifiedName = element.qualifiedName?.asString() ?: continue // 获取一次，如果为空则跳过
             val elementPackageName = element.packageName.asString()
 
+            val contract = element.resolveInterceptorContract(
+                logger = logger,
+                annotationLabel = "@RouterGlobalPopInterceptor",
+                interfaceQualifiedName = "io.github.limuyang2.router.IRouterPopInterceptor",
+            )
+            if (!contract.implementsInterface) {
+                continue
+            }
+
             // ------------------- 处理 @RouterGlobalInterceptor 注解参数 --------------------------------------
 
             // 获取 注解的参数
@@ -96,7 +105,8 @@ internal class GlobalPopInterceptorProcessor(
                     clazzSimpleName = element.simpleName.asString(),
                     clazzPackageName = elementPackageName,
                     clazzQualifiedName = elementQualifiedName,
-                    classKind = element.classKind
+                    classKind = element.classKind,
+                    noArgConstruction = contract.noArgConstruction,
                 )
             )
 

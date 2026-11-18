@@ -1,5 +1,7 @@
 package io.github.limuyang2.router
 
+import kotlin.reflect.KClass
+
 /**
  * 初始化全局路由配置；重复调用不替换首次配置。应在模块注册和创建 Navigator 前调用。
  *
@@ -86,6 +88,17 @@ object RouterSingleton {
     fun getConfigOrNull(): Config? = mConfig
 
     /**
+     * 重置初始化状态并清空模块注册表；仅供测试在用例间恢复现场，业务代码不得调用。
+     *
+     * Resets initialization state and clears module providers; test-only, never call from production code.
+     */
+    internal fun resetForTest() {
+        isInit = false
+        mConfig = null
+        providers.clear()
+    }
+
+    /**
      * 不可变的全局路由配置
      *
      * Immutable global routing configuration.
@@ -93,6 +106,7 @@ object RouterSingleton {
     class Config private constructor(
         val defaultScheme: String,
         val isLog: Boolean,
+        val interceptorResolver: ((KClass<*>) -> Any?)?,
     ) {
         /**
          * 全局配置构建器
@@ -102,6 +116,7 @@ object RouterSingleton {
         class Builder {
             private var defaultScheme: String? = null
             private var isLog: Boolean = false
+            private var interceptorResolver: ((KClass<*>) -> Any?)? = null
 
             /**
              * 设置未显式声明 scheme 的路由所用协议，默认值为 route。
@@ -124,6 +139,25 @@ object RouterSingleton {
             }
 
             /**
+             * 注册拦截器实例解析器（DI 接入口，如 Koin）。注解声明的拦截器构造实例时优先询问
+             * 该解析器：返回目标类的实例则采用（DI 构造注入由此生效）；返回 null 表示不认识
+             * 该类，走生成代码的无参构造兜底；object 拦截器不参与解析。拦截器类没有可用的
+             * 无参构造时（仅能靠解析器提供），未注册或未命中会在 Navigator 构造期抛出异常。
+             *
+             * Registers an interceptor instance resolver (DI entry point, e.g. Koin). Annotated
+             * interceptors ask it first when constructed: a returned instance wins (enabling DI
+             * constructor injection), while null means unknown and falls back to the generated
+             * no-arg construction; object interceptors never consult it. Classes without a usable
+             * no-arg construction (resolver-only) throw at Navigator construction when the
+             * resolver is absent or misses.
+             *
+             * @param resolver 类到实例的解析函数，返回 null 表示未命中 / Class-to-instance lookup; null means a miss.
+             */
+            fun interceptorResolver(resolver: (KClass<*>) -> Any?) = apply {
+                this.interceptorResolver = resolver
+            }
+
+            /**
              * 构建配置，不执行初始化
              *
              * Builds the configuration without initializing routing.
@@ -132,6 +166,7 @@ object RouterSingleton {
                 return Config(
                     defaultScheme = defaultScheme ?: "route",
                     isLog = isLog,
+                    interceptorResolver = interceptorResolver,
                 )
             }
         }

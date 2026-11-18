@@ -115,6 +115,16 @@ class MultiModuleRegistrationTest {
         assertSame(single, navigator.last())
     }
 
+    /** 注解声明的 DI-only 拦截器（构造带参）必须经 interceptorResolver 解析并进入真实拦截链。 */
+    @Test
+    fun annotatedDiOnlyInterceptorResolvesThroughResolverIntoChain() = withNavigator { navigator ->
+        assertTrue(DemoDependencyBox.resolutions > 0, "生成代码未经过 interceptorResolver 解析")
+        val hitsBefore = DemoDependencyBox.diPushHits
+        navigator.push("test://modules/account")
+        runCurrent()
+        assertTrue(DemoDependencyBox.diPushHits > hitsBefore, "resolver 提供的拦截器未执行")
+    }
+
     private fun withNavigator(block: suspend TestScope.(Navigator) -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {

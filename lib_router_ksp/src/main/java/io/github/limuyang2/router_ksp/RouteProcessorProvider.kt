@@ -223,6 +223,10 @@ internal data class TempGlobalInterceptor(
     val clazzPackageName: String,
     val clazzQualifiedName: String,
     val classKind: ClassKind,
+    /**
+     * 是否可用无参构造；false 时生成代码不含兜底，实例由 interceptorResolver 提供
+     */
+    val noArgConstruction: Boolean,
 )
 
 

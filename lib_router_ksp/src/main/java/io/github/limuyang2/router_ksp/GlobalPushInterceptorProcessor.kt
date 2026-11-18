@@ -82,6 +82,15 @@ internal class GlobalPushInterceptorProcessor(
             val elementQualifiedName = element.qualifiedName?.asString() ?: continue // 获取一次，如果为空则跳过
             val elementPackageName = element.packageName.asString()
 
+            val contract = element.resolveInterceptorContract(
+                logger = logger,
+                annotationLabel = "@RouterGlobalPushInterceptor",
+                interfaceQualifiedName = "io.github.limuyang2.router.IRouterPushInterceptor",
+            )
+            if (!contract.implementsInterface) {
+                continue
+            }
+
             // ------------------- 处理 @RouterGlobalPushInterceptor 注解参数 --------------------------------------
 
             // 获取 注解的参数
@@ -97,7 +106,8 @@ internal class GlobalPushInterceptorProcessor(
                     clazzSimpleName = element.simpleName.asString(),
                     clazzPackageName = elementPackageName,
                     clazzQualifiedName = elementQualifiedName,
-                    classKind = element.classKind
+                    classKind = element.classKind,
+                    noArgConstruction = contract.noArgConstruction,
                 )
             )
 

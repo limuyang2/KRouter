@@ -12,6 +12,9 @@ fun initDemoRouter() {
     initRouter {
         defaultScheme("test")
         isLog(true)
+        // DI 演示：注解声明的拦截器实例优先经 resolver 解析（模拟 Koin，
+        // 见 DemoDependencyBox），未命中走生成代码的无参构造兜底。
+        interceptorResolver { clazz -> DemoDependencyBox.resolve(clazz) }
     }
     // 由宿主聚合插件生成的 RouterAggregatedRegistry 统一注册所有模块，
     // Android/Desktop/iOS/Web 一致，不再依赖 ServiceLoader 或手动注册。
