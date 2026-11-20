@@ -614,7 +614,7 @@ class SourcePushInterceptor : IRouterPushInterceptor {
 
 Push 改写目标类型后会重新执行适用的拦截器链。调用 `chain.interrupt()` 可以中断跳转。
 
-全局拦截器是进程级单例、被所有 `Navigator` 共享；`chain.navigator()` 返回发起本次操作的 `Navigator`，多栈场景（如多窗口）据此做只读检查（`backStack`、`last()` 埋点、去重、门禁）。不建议在其中重入 push/pop：那会启动另一条拦截器链，与本次操作的先后顺序未定义。Pop 拦截器链同样提供该方法。
+全局拦截器默认适用于所有 `Navigator`；可在 `@RouterGlobalPushInterceptor` / `@RouterGlobalPopInterceptor` 中通过 `navigatorTags` 限定标签，并在创建时用 `Navigator(start) { tags("main") }` 为 Navigator 添加标签。标签按 OR 匹配；`navigatorTags` 为空表示不限制，Navigator 未设置标签时只会使用未限制标签的全局拦截器。`chain.navigator()` 返回发起本次操作的 `Navigator`，多栈场景可据此检查所属栈。不建议在拦截器中重入 push/pop：那会启动另一条拦截器链，与本次操作的先后顺序未定义。Pop 拦截器链同样提供该方法。
 
 初始路由是导航栈的初始状态而非一次跳转：`Navigator` 构造时同步种入栈底，不经过 Push 拦截器，也不派发 `BackStackEvent.Push`。需要按条件决定初始页（如登录门禁）时，应在构造前选择 `startDestination`，或在初始页就位后显式跳转。
 

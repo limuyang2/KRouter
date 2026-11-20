@@ -151,6 +151,11 @@ class RouterKspFunctionalTest {
         val root = incrementalFixture()
         interceptorApi(root)
         source(root, "Repo.kt", "package sample\nclass Repo")
+        source(root, "TaggedPop.kt", """
+            package sample
+            @io.github.limuyang2.router.anno.RouterGlobalPopInterceptor(navigatorTags=["modal"])
+            object TaggedPop : io.github.limuyang2.router.IRouterPopInterceptor
+        """)
         // DI-only：构造带参且无默认值，生成代码不得含无参兜底，实例必须由 interceptorResolver 提供。
         source(root, "DiPush.kt", """
             package sample
@@ -160,7 +165,7 @@ class RouterKspFunctionalTest {
         // 全默认值参数：可用无参构造，包 resolver 并保留兜底。
         source(root, "DefaultCtor.kt", """
             package sample
-            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor(priority=3)
+            @io.github.limuyang2.router.anno.RouterGlobalPushInterceptor(priority=3, navigatorTags=["main", "modal"])
             class DefaultCtor(val x: Int = 1) : io.github.limuyang2.router.IRouterPushInterceptor
         """, sourceSet = "backendMain")
         // private 无参构造：生成代码（同模块不同包）不可调用，归入 resolver-only，无兜底。
@@ -182,6 +187,10 @@ class RouterKspFunctionalTest {
         assertFalse("DI-only interceptor must not carry a no-arg fallback:\n$provider", provider.contains("DiPush()"))
         assertTrue("Default-parameter interceptor must keep its fallback:\n$provider",
             provider.contains("io.github.limuyang2.router.resolvePushInterceptor(sample.DefaultCtor::class) { sample.DefaultCtor() }"))
+        assertTrue("Navigator tags must be preserved in generated metadata:\n$provider",
+            provider.contains("navigatorTags = setOf(\"main\", \"modal\")"))
+        assertTrue("Pop interceptor Navigator tags must be preserved:\n$provider",
+            provider.contains("navigatorTags = setOf(\"modal\")"))
         assertTrue("Private-constructor interceptor must be resolver-only:\n$provider",
             provider.contains("interceptor = io.github.limuyang2.router.resolvePushInterceptor(sample.PrivCtor::class), priority = 4"))
         assertFalse("Private constructor must not generate a fallback call:\n$provider", provider.contains("PrivCtor()"))
@@ -570,8 +579,8 @@ class RouterKspFunctionalTest {
                 fun resolvePopInterceptor(clazz: KClass<*>): IRouterPopInterceptor = error("interceptorResolver required")
                 typealias EntryProviderInstaller = EntryBuilder.() -> Unit
             """.trimIndent())
-            .replace("class GlobalPushInterceptorInfo", "class GlobalPushInterceptorInfo(val interceptor: IRouterPushInterceptor, val priority: Int)")
-            .replace("class GlobalPopInterceptorInfo", "class GlobalPopInterceptorInfo(val interceptor: IRouterPopInterceptor, val priority: Int)"))
+            .replace("class GlobalPushInterceptorInfo", "class GlobalPushInterceptorInfo(val interceptor: IRouterPushInterceptor, val priority: Int, val navigatorTags: Set<String> = emptySet())")
+            .replace("class GlobalPopInterceptorInfo", "class GlobalPopInterceptorInfo(val interceptor: IRouterPopInterceptor, val priority: Int, val navigatorTags: Set<String> = emptySet())"))
         File(root, "api/src/main/kotlin/io/github/limuyang2/router/info/Interceptors.kt").writeText("""
             package io.github.limuyang2.router.info
             class ParsePagePushInterceptorInfo(val priority: Int, val interceptor: io.github.limuyang2.router.IRouterPushInterceptor)
@@ -580,8 +589,8 @@ class RouterKspFunctionalTest {
         File(root, "api/src/main/kotlin/io/github/limuyang2/router/anno/Interceptors.kt").writeText("""
             package io.github.limuyang2.router.anno
             import kotlin.reflect.KClass
-            annotation class RouterGlobalPushInterceptor(val priority: Int = 10)
-            annotation class RouterGlobalPopInterceptor(val priority: Int = 10)
+            annotation class RouterGlobalPushInterceptor(val priority: Int = 10, val navigatorTags: Array<String> = [])
+            annotation class RouterGlobalPopInterceptor(val priority: Int = 10, val navigatorTags: Array<String> = [])
             annotation class RouterOwnerPushInterceptor(val owners: Array<KClass<*>>, val priorities: IntArray = [])
             annotation class RouterOwnerPopInterceptor(val owners: Array<KClass<*>>, val priorities: IntArray = [])
         """.trimIndent())

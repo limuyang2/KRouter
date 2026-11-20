@@ -11,10 +11,12 @@ package io.github.limuyang2.router
  *
  * @param interceptor 全局 Push 拦截器实例 / Global push interceptor instance.
  * @param priority 优先级数值，数值越小越先执行 / Priority value; smaller values run first.
+ * @param navigatorTags 适用的 Navigator 标签；为空时适用于所有 Navigator / Navigator tags this interceptor applies to; empty means all Navigators.
  */
 class GlobalPushInterceptorInfo(
     val interceptor: IRouterPushInterceptor,
-    val priority: Int
+    val priority: Int,
+    val navigatorTags: Set<String> = emptySet(),
 )
 
 /**
@@ -28,8 +30,10 @@ class GlobalPushInterceptorInfo(
  *
  * @param interceptor 全局 Pop 拦截器实例 / Global pop interceptor instance.
  * @param priority 优先级数值，数值越小越先执行 / Priority value; smaller values run first.
+ * @param navigatorTags 适用的 Navigator 标签；为空时适用于所有 Navigator / Navigator tags this interceptor applies to; empty means all Navigators.
  */
 class GlobalPopInterceptorInfo(
     val interceptor: IRouterPopInterceptor,
-    val priority: Int
+    val priority: Int,
+    val navigatorTags: Set<String> = emptySet(),
 )

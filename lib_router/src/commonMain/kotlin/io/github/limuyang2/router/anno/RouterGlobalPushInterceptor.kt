@@ -10,9 +10,11 @@ package io.github.limuyang2.router.anno
  * Used for unified parameter injection, redirection, or interception checks before navigation.
  *
  * @param priority 优先级，数值越小优先级越高、越先执行，默认值为 10 / Priority; smaller values indicate higher priority and execute earlier, default is 10.
+ * @param navigatorTags 适用的 Navigator 标签；为空时适用于所有 Navigator / Navigator tags this interceptor applies to; empty means all Navigators.
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
 annotation class RouterGlobalPushInterceptor(
-    val priority: Int = 10
+    val priority: Int = 10,
+    val navigatorTags: Array<String> = [],
 )

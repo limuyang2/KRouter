@@ -97,8 +97,11 @@ internal class GlobalPushInterceptorProcessor(
             val priority = targetAnnotation.arguments.find {
                 it.name?.asString() == "priority"
             }?.value as? Int ?: 10
-
-
+            val navigatorTags = targetAnnotation.arguments.find {
+                it.name?.asString() == "navigatorTags"
+            }?.value.let { value ->
+                (value as? List<*>)?.filterIsInstance<String>()?.toSet().orEmpty()
+            }
 
             pushList.add(
                 TempGlobalInterceptor(
@@ -107,6 +110,7 @@ internal class GlobalPushInterceptorProcessor(
                     clazzPackageName = elementPackageName,
                     clazzQualifiedName = elementQualifiedName,
                     classKind = element.classKind,
+                    navigatorTags = navigatorTags,
                     noArgConstruction = contract.noArgConstruction,
                 )
             )

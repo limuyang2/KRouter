@@ -32,7 +32,9 @@ import kotlin.reflect.KClass
 class Navigator(startDestination: Any, builder: Builder.() -> Unit = {}) {
 
     // internal 供同模块测试读取栈状态与取消协程；对外只经 Navigator 暴露。
-    internal val core = Core(startDestination, Builder().apply(builder).protectedClasses)
+    internal val core = Builder().apply(builder).let {
+        Core(startDestination, it.protectedClasses, it.tags)
+    }
 
     /**
      * 声明受保护页面：无论处于栈内哪个位置，都不被任何移除操作带走——pop/remove 的目标
@@ -46,6 +48,18 @@ class Navigator(startDestination: Any, builder: Builder.() -> Unit = {}) {
      */
     class Builder {
         internal val protectedClasses = mutableSetOf<KClass<*>>()
+        internal val tags = mutableSetOf<String>()
+
+        /**
+         * 为 Navigator 添加通用标签，可多次调用叠加。
+         *
+         * Adds generic tags to this Navigator; multiple calls accumulate.
+         *
+         * @param tags Navigator 标签 / Navigator tags.
+         */
+        fun tags(vararg tags: String) {
+            this.tags += tags
+        }
 
         /**
          * 声明受保护页面类型，可多次调用叠加。

@@ -162,8 +162,28 @@ private fun List<TempRouteInfo>.contentAliasesMap(): String {
 
 private fun List<TempGlobalInterceptor>.interceptorString(infoClassName: String, resolveFunction: String): String {
     return this.joinToString(separator = ", \n        ") {
-        "$infoClassName(interceptor = ${it.instantiationCode(resolveFunction)}, priority = ${it.priority})"
+        val navigatorTags = it.navigatorTags
+            .takeIf { tags -> tags.isNotEmpty() }
+            ?.joinToString(prefix = "setOf(", postfix = ")") { tag -> tag.toKotlinStringLiteral() }
+            ?: "emptySet()"
+        "$infoClassName(interceptor = ${it.instantiationCode(resolveFunction)}, priority = ${it.priority}, navigatorTags = $navigatorTags)"
     }
+}
+
+private fun String.toKotlinStringLiteral(): String = buildString {
+    append('"')
+    for (character in this@toKotlinStringLiteral) {
+        when (character) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '$' -> append("\\$")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            else -> append(character)
+        }
+    }
+    append('"')
 }
 
 /**

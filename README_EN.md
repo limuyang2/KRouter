@@ -617,7 +617,7 @@ Pages bind them via `@Router(pushInterceptors = [...])`; global interceptors are
 
 When a Push interceptor rewrites the target type, the applicable interceptor chain restarts. Call `chain.interrupt()` to abort the navigation.
 
-Global interceptors are process-level singletons shared by every `Navigator`; `chain.navigator()` returns the `Navigator` executing the current operation, so multi-stack setups (e.g. multiple windows) can inspect the owning stack read-only (`backStack`, `last()` for tracking, dedup or gating). Reentrant push/pop is discouraged: it starts another interceptor chain whose ordering against the current operation is undefined. The pop interceptor chain exposes the same method.
+Global interceptors apply to every `Navigator` by default. Use `navigatorTags` on `@RouterGlobalPushInterceptor` / `@RouterGlobalPopInterceptor` to limit them, and add tags when constructing a Navigator with `Navigator(start) { tags("main") }`. Tags use OR matching; an empty `navigatorTags` means unrestricted, while a Navigator with no tags only receives unrestricted global interceptors. `chain.navigator()` returns the `Navigator` executing the current operation, allowing multi-stack setups to inspect the owning stack. Reentrant push/pop is discouraged: it starts another interceptor chain whose ordering against the current operation is undefined. The pop interceptor chain exposes the same method.
 
 The start destination is the stack's initial state, not a navigation: `Navigator` seeds it synchronously during construction without push interceptors and without emitting `BackStackEvent.Push`. For a conditional start page (e.g. a login gate), choose the `startDestination` before construction, or navigate explicitly once the initial page is in place.
 

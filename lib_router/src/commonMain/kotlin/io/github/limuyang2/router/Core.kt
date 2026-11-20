@@ -36,6 +36,7 @@ private fun IRouterEntryProvider.debugLabel(): String {
 internal class Core(
     startDestination: Any,
     protectedClasses: Set<KClass<*>> = emptySet(),
+    navigatorTags: Set<String> = emptySet(),
 ) :
     CoroutineScope by CoroutineScope(Dispatchers.Main.immediate + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
         logE { "Router Error: ${throwable.message}" }
@@ -80,11 +81,13 @@ internal class Core(
 
         globalPushInterceptors = RouterSingleton.providers
             .flatMap { it.globalPushInterceptors() }
+            .filter { it.navigatorTags.isEmpty() || it.navigatorTags.any(navigatorTags::contains) }
             .sortedBy { it.priority }
             .map { it.interceptor }
 
         globalPopInterceptors = RouterSingleton.providers
             .flatMap { it.globalPopInterceptors() }
+            .filter { it.navigatorTags.isEmpty() || it.navigatorTags.any(navigatorTags::contains) }
             .sortedBy { it.priority }
             .map { it.interceptor }
 

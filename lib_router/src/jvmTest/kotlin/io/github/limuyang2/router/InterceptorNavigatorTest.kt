@@ -77,6 +77,57 @@ class InterceptorNavigatorTest {
     }
 
     @Test
+    fun taggedGlobalInterceptorsOnlyRunOnMatchingNavigators() {
+        val pushCalls = mutableListOf<Navigator>()
+        val popCalls = mutableListOf<Navigator>()
+        withRouter(
+            push = object : IRouterPushInterceptor {
+                override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
+                    pushCalls += chain.navigator()
+                    return chain.proceed(chain.request())
+                }
+            },
+            pushTags = setOf("main"),
+            pop = object : IRouterPopInterceptor {
+                override suspend fun intercept(chain: IRouterPopInterceptor.Chain): PopResponse {
+                    popCalls += chain.navigator()
+                    return chain.proceed()
+                }
+            },
+            popTags = setOf("main"),
+            firstTags = setOf("main"),
+        ) { first, second ->
+            first.push { destination = PageA() }
+            second.push { destination = PageB() }
+            runCurrent()
+            first.pop()
+            second.pop()
+            runCurrent()
+
+            assertEquals(listOf(first), pushCalls)
+            assertEquals(listOf(first), popCalls)
+        }
+    }
+
+    @Test
+    fun globalInterceptorMatchesAnyNavigatorTag() = withRouter(
+        push = object : IRouterPushInterceptor {
+            override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
+                seenNavigators += chain.navigator()
+                return chain.proceed(chain.request())
+            }
+        },
+        pushTags = setOf("main", "modal"),
+        firstTags = setOf("modal"),
+    ) { first, second ->
+        first.push { destination = PageA() }
+        second.push { destination = PageB() }
+        runCurrent()
+
+        assertEquals(listOf(first), seenNavigators)
+    }
+
+    @Test
     fun pushChainRestartKeepsOwningNavigatorBound() = withRouter(
         push = object : IRouterPushInterceptor {
             override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
@@ -103,7 +154,11 @@ class InterceptorNavigatorTest {
 
     private fun withRouter(
         push: IRouterPushInterceptor? = null,
+        pushTags: Set<String> = emptySet(),
         pop: IRouterPopInterceptor? = null,
+        popTags: Set<String> = emptySet(),
+        firstTags: Set<String> = emptySet(),
+        secondTags: Set<String> = emptySet(),
         block: suspend TestScope.(Navigator, Navigator) -> Unit,
     ) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -113,14 +168,14 @@ class InterceptorNavigatorTest {
             override fun routeMasterKV(): Map<KClass<*>, ParseRouterInfo> = emptyMap()
             override fun routeAliasesKV(): Map<String, KClass<*>> = emptyMap()
             override fun globalPushInterceptors(): List<GlobalPushInterceptorInfo> =
-                push?.let { listOf(GlobalPushInterceptorInfo(it, 0)) }.orEmpty()
+                push?.let { listOf(GlobalPushInterceptorInfo(it, 0, pushTags)) }.orEmpty()
             override fun globalPopInterceptors(): List<GlobalPopInterceptorInfo> =
-                pop?.let { listOf(GlobalPopInterceptorInfo(it, 0)) }.orEmpty()
+                pop?.let { listOf(GlobalPopInterceptorInfo(it, 0, popTags)) }.orEmpty()
             override fun entryProviderInstaller(): EntryProviderInstaller = {}
         }
         // 全局拦截器在 Core 构造期快照，必须先注册再构造两个 Navigator。
-        val first = Navigator(Root())
-        val second = Navigator(Root())
+        val first = Navigator(Root()) { tags(*firstTags.toTypedArray()) }
+        val second = Navigator(Root()) { tags(*secondTags.toTypedArray()) }
         try {
             runCurrent()
             block(first, second)

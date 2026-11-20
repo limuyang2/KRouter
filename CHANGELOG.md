@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
+## [Unreleased]
+
+### 新增 / Added
+
+- **Navigator 标签筛选全局拦截器**：Navigator Builder 支持添加通用标签；全局 Push/Pop 拦截器注解可通过 `navigatorTags` 限定适用标签。空标签限制仍适用于所有 Navigator，已有用法保持不变。
+  - **Navigator-tagged global interceptors**: Navigator Builder accepts generic tags, and global Push/Pop interceptor annotations can use `navigatorTags` to limit applicability. Empty tag filters still apply to every Navigator, preserving existing behavior.
+
 ## [1.5.0] - 2026-11-18
 
 ### 新增 / Added
