@@ -7,7 +7,7 @@
 
 面向 Kotlin Multiplatform 与 Compose Navigation 3 的路由库。通过注解、KSP 和 Gradle 模块聚合，将 URL、页面实例、参数注入、拦截器与结果回传接入同一套导航 API。
 
-**项目状态：已发布 [1.4.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）；[1.5.0](CHANGELOG.md) 已打包待上传。**
+**项目状态：已发布 [1.6.0](https://central.sonatype.com/artifact/io.github.limuyang2/router)（Maven Central）。**
 
 ## 项目定位
 
@@ -43,7 +43,7 @@ KRouter 提供路由解析、导航栈操作和模块注册能力；页面展示
 
 ## 安装
 
-KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.5.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
+KRouter 已发布到 [Maven Central](https://central.sonatype.com/artifact/io.github.limuyang2/router)，当前版本 1.6.0。运行时库、KSP 处理器和 Gradle 插件随同一版本发布，请保持三者版本一致。
 
 | 构件 | 坐标 | 说明 |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router.module") version "1.5.0"
+    id("io.github.limuyang2.router.module") version "1.6.0"
     id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
 }
 
@@ -85,7 +85,7 @@ kotlin {
         commonMain {
             dependencies {
                 // 使用 api 暴露运行时库，宿主才能聚合本模块及其传递依赖的索引。
-                api("io.github.limuyang2:router:1.5.0")
+                api("io.github.limuyang2:router:1.6.0")
             }
         }
     }
@@ -93,8 +93,8 @@ kotlin {
 
 // KSP 按 target / compilation 配置，这里以 Android 和 iOS 为例；纯 JVM 模块可直接使用 ksp(...)。
 dependencies {
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.5.0")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.5.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.6.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.6.0")
 }
 
 // 可选：覆盖默认 moduleId（默认取 group:name）。
@@ -107,15 +107,15 @@ router {
 
 ```kotlin
 plugins {
-    id("io.github.limuyang2.router") version "1.5.0"
+    id("io.github.limuyang2.router") version "1.6.0"
     id("com.google.devtools.ksp") version "<与 Kotlin 匹配的版本>"
 }
 
 dependencies {
     implementation(project(":feature-product"))
-    implementation("io.github.limuyang2:router:1.5.0")
-    add("kspAndroid", "io.github.limuyang2:router-ksp:1.5.0")
-    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.5.0")
+    implementation("io.github.limuyang2:router:1.6.0")
+    add("kspAndroid", "io.github.limuyang2:router-ksp:1.6.0")
+    add("kspIosArm64", "io.github.limuyang2:router-ksp:1.6.0")
 }
 
 // 聚合当前编译依赖的模块索引，生成 RouterAggregatedRegistry。
