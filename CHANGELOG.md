@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Navigator 标签筛选全局拦截器**：Navigator Builder 支持添加通用标签；全局 Push/Pop 拦截器注解可通过 `navigatorTags` 限定适用标签。空标签限制仍适用于所有 Navigator，已有用法保持不变。
   - **Navigator-tagged global interceptors**: Navigator Builder accepts generic tags, and global Push/Pop interceptor annotations can use `navigatorTags` to limit applicability. Empty tag filters still apply to every Navigator, preserving existing behavior.
+- **运行期拦截器注册**：Navigator 新增实例级 Push/Pop 拦截器 add/remove API，支持优先级排序与实例身份去重；正在执行的导航使用固定快照。
+  - **Runtime interceptor registration**: Navigator adds instance-local Push/Pop interceptor add/remove APIs with priority ordering and identity-based deduplication; in-flight navigations keep their captured snapshot.
 
 ## [1.5.0] - 2026-11-18
 

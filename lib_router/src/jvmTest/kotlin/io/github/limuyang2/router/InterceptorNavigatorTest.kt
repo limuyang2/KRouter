@@ -1,6 +1,7 @@
 package io.github.limuyang2.router
 
 import io.github.limuyang2.router.info.ParseRouterInfo
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -13,11 +14,12 @@ import kotlinx.coroutines.test.setMain
 import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
- * 全局拦截器是进程级单例、被所有 Navigator 共享；Chain.navigator() 必须把
- * 当前操作归属到发起它的那一个 Navigator，多栈场景下互不串扰。
+ * Chain.navigator() 必须返回发起当前操作的 Navigator，确保多栈场景下拦截器按所属栈工作。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class InterceptorNavigatorTest {
@@ -74,6 +76,82 @@ class InterceptorNavigatorTest {
         assertEquals(listOf<Navigator>(first, second), seenNavigators)
         assertEquals(1, first.backStack.size)
         assertEquals(1, second.backStack.size)
+    }
+
+    @Test
+    fun runtimePushInterceptorsDeduplicateByIdentityAndRespectPriority() = withRouter { first, second ->
+        val calls = mutableListOf<String>()
+        val later = pushInterceptor { calls += "later" }
+        val earlier = pushInterceptor { calls += "earlier" }
+        val equalFirst = pushInterceptor { calls += "equalFirst" }
+        val equalSecond = pushInterceptor { calls += "equalSecond" }
+
+        assertTrue(first.addPushInterceptor(later, priority = 5))
+        assertFalse(first.addPushInterceptor(later, priority = 0))
+        assertTrue(first.addPushInterceptor(earlier, priority = 1))
+        assertTrue(first.addPushInterceptor(equalFirst, priority = 3))
+        assertTrue(first.addPushInterceptor(equalSecond, priority = 3))
+
+        first.push { destination = PageA() }
+        second.push { destination = PageB() }
+        runCurrent()
+
+        assertEquals(listOf("earlier", "equalFirst", "equalSecond", "later"), calls)
+        assertTrue(first.removePushInterceptor(later))
+        assertFalse(first.removePushInterceptor(later))
+    }
+
+    @Test
+    fun runtimePopInterceptorsAreNavigatorLocal() = withRouter { first, second ->
+        val calls = mutableListOf<Navigator>()
+        val interceptor = object : IRouterPopInterceptor {
+            override suspend fun intercept(chain: IRouterPopInterceptor.Chain): PopResponse {
+                calls += chain.navigator()
+                return chain.proceed()
+            }
+        }
+
+        assertTrue(first.addPopInterceptor(interceptor))
+        first.push { destination = PageA() }
+        second.push { destination = PageB() }
+        runCurrent()
+        first.pop()
+        second.pop()
+        runCurrent()
+
+        assertEquals(listOf(first), calls)
+        assertTrue(first.removePopInterceptor(interceptor))
+        assertFalse(first.removePopInterceptor(interceptor))
+    }
+
+    @Test
+    fun changesDuringPushApplyOnlyToSubsequentOperations() = withRouter { first, _ ->
+        val gate = CompletableDeferred<Unit>()
+        val calls = mutableListOf<String>()
+        val original = object : IRouterPushInterceptor {
+            override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
+                calls += "original"
+                gate.await()
+                return chain.proceed(chain.request())
+            }
+        }
+        val replacement = pushInterceptor { calls += "replacement" }
+
+        assertTrue(first.addPushInterceptor(original))
+        first.push { destination = PageA() }
+        runCurrent()
+        assertEquals(listOf("original"), calls)
+
+        assertTrue(first.removePushInterceptor(original))
+        assertTrue(first.addPushInterceptor(replacement))
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("original"), calls)
+
+        calls.clear()
+        first.push { destination = PageB() }
+        runCurrent()
+        assertEquals(listOf("replacement"), calls)
     }
 
     @Test
@@ -151,6 +229,13 @@ class InterceptorNavigatorTest {
 
     private val seenNavigators = mutableListOf<Navigator>()
     private val seenTops = mutableListOf<IRouterEntryProvider?>()
+
+    private fun pushInterceptor(block: () -> Unit) = object : IRouterPushInterceptor {
+        override suspend fun intercept(chain: IRouterPushInterceptor.Chain): PushResponse {
+            block()
+            return chain.proceed(chain.request())
+        }
+    }
 
     private fun withRouter(
         push: IRouterPushInterceptor? = null,

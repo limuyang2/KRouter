@@ -616,6 +616,8 @@ Push 改写目标类型后会重新执行适用的拦截器链。调用 `chain.i
 
 全局拦截器默认适用于所有 `Navigator`；可在 `@RouterGlobalPushInterceptor` / `@RouterGlobalPopInterceptor` 中通过 `navigatorTags` 限定标签，并在创建时用 `Navigator(start) { tags("main") }` 为 Navigator 添加标签。标签按 OR 匹配；`navigatorTags` 为空表示不限制，Navigator 未设置标签时只会使用未限制标签的全局拦截器。`chain.navigator()` 返回发起本次操作的 `Navigator`，多栈场景可据此检查所属栈。不建议在拦截器中重入 push/pop：那会启动另一条拦截器链，与本次操作的先后顺序未定义。Pop 拦截器链同样提供该方法。
 
+可在运行期通过 `navigator.addPushInterceptor(...)` / `removePushInterceptor(...)` 或对应的 Pop API 修改当前 Navigator 的拦截器链。注册按实例身份去重，按优先级升序执行，同优先级的新拦截器排在已有项之后；增删返回 `Boolean` 表示注册表是否改变。每次导航固定使用启动时的拦截器快照，运行中的链不会被增删影响。请在该 Navigator 所属的 UI 线程调用这些 API。
+
 初始路由是导航栈的初始状态而非一次跳转：`Navigator` 构造时同步种入栈底，不经过 Push 拦截器，也不派发 `BackStackEvent.Push`。需要按条件决定初始页（如登录门禁）时，应在构造前选择 `startDestination`，或在初始页就位后显式跳转。
 
 ### Pop：检查已绑定的页面

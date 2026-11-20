@@ -29,6 +29,38 @@ private data class PopMutation(
     val dispatchActions: List<() -> Unit>,
 )
 
+private data class InterceptorRegistration<T : Any>(
+    val interceptor: T,
+    val priority: Int,
+)
+
+private class InterceptorRegistry<T : Any>(initial: List<InterceptorRegistration<T>>) {
+    private var registrations = initial.sortedBy { it.priority }
+    private var interceptors = registrations.map { it.interceptor }
+
+    fun snapshot(): List<T> = interceptors
+
+    fun add(interceptor: T, priority: Int): Boolean {
+        if (registrations.any { it.interceptor === interceptor }) return false
+
+        val insertionIndex = registrations.indexOfFirst { it.priority > priority }
+            .takeIf { it >= 0 } ?: registrations.size
+        registrations = registrations.toMutableList().apply {
+            add(insertionIndex, InterceptorRegistration(interceptor, priority))
+        }
+        interceptors = registrations.map { it.interceptor }
+        return true
+    }
+
+    fun remove(interceptor: T): Boolean {
+        val updated = registrations.filterNot { it.interceptor === interceptor }
+        if (updated.size == registrations.size) return false
+        registrations = updated
+        interceptors = registrations.map { it.interceptor }
+        return true
+    }
+}
+
 private fun IRouterEntryProvider.debugLabel(): String {
     return "${this::class.simpleName}(contentKey=${contentKey()})"
 }
@@ -55,8 +87,20 @@ internal class Core(
 
     internal fun isProtected(page: Any): Boolean = page::class in protectedClasses
 
-    private val globalPushInterceptors: List<IRouterPushInterceptor>
-    private val globalPopInterceptors: List<IRouterPopInterceptor>
+    internal fun addPushInterceptor(interceptor: IRouterPushInterceptor, priority: Int): Boolean =
+        globalPushInterceptors.add(interceptor, priority)
+
+    internal fun removePushInterceptor(interceptor: IRouterPushInterceptor): Boolean =
+        globalPushInterceptors.remove(interceptor)
+
+    internal fun addPopInterceptor(interceptor: IRouterPopInterceptor, priority: Int): Boolean =
+        globalPopInterceptors.add(interceptor, priority)
+
+    internal fun removePopInterceptor(interceptor: IRouterPopInterceptor): Boolean =
+        globalPopInterceptors.remove(interceptor)
+
+    private val globalPushInterceptors: InterceptorRegistry<IRouterPushInterceptor>
+    private val globalPopInterceptors: InterceptorRegistry<IRouterPopInterceptor>
     private val realPushInterceptor = RealPushInterceptor(this)
     private val activePopPlans = mutableSetOf<PopPlan>()
     private val resultStore = ResultStore()
@@ -79,17 +123,19 @@ internal class Core(
             aliasesKV.putAll(provider.routeAliasesKV())
         }
 
-        globalPushInterceptors = RouterSingleton.providers
-            .flatMap { it.globalPushInterceptors() }
-            .filter { it.navigatorTags.isEmpty() || it.navigatorTags.any(navigatorTags::contains) }
-            .sortedBy { it.priority }
-            .map { it.interceptor }
+        globalPushInterceptors = InterceptorRegistry(
+            RouterSingleton.providers
+                .flatMap { it.globalPushInterceptors() }
+                .filter { it.navigatorTags.isEmpty() || it.navigatorTags.any(navigatorTags::contains) }
+                .map { InterceptorRegistration(it.interceptor, it.priority) },
+        )
 
-        globalPopInterceptors = RouterSingleton.providers
-            .flatMap { it.globalPopInterceptors() }
-            .filter { it.navigatorTags.isEmpty() || it.navigatorTags.any(navigatorTags::contains) }
-            .sortedBy { it.priority }
-            .map { it.interceptor }
+        globalPopInterceptors = InterceptorRegistry(
+            RouterSingleton.providers
+                .flatMap { it.globalPopInterceptors() }
+                .filter { it.navigatorTags.isEmpty() || it.navigatorTags.any(navigatorTags::contains) }
+                .map { InterceptorRegistration(it.interceptor, it.priority) },
+        )
 
         // 初始路由同步种入栈底，保证首次组合读取 backStack 前页面已就位。
         mBackStack.add(resolveStartEntry(startDestination))
@@ -789,6 +835,7 @@ internal class Core(
         navigator: Navigator,
         request: PushRequest,
     ): PushResponse {
+        val globalInterceptors = globalPushInterceptors.snapshot()
         var currentRequest = request
 
         do {
@@ -801,10 +848,10 @@ internal class Core(
             }?.map { it.interceptor }
 
             val interceptors = ArrayList<IRouterPushInterceptor>(
-                globalPushInterceptors.size + (pageInterceptors?.size ?: 0) + 1
+                globalInterceptors.size + (pageInterceptors?.size ?: 0) + 1
             )
 
-            interceptors += globalPushInterceptors
+            interceptors += globalInterceptors
             pageInterceptors?.let { interceptors += it }
             interceptors += realPushInterceptor
 
@@ -897,6 +944,7 @@ internal class Core(
         navigator: Navigator,
         request: PopRequest,
     ): PopResponse {
+        val globalInterceptors = globalPopInterceptors.snapshot()
         val pageInterceptors = request.plan.removeTargets
             .asSequence()
             .mapNotNull { page -> getRouterInfo(page::class) }
@@ -907,7 +955,7 @@ internal class Core(
             .toList()
 
         return RealPopInterceptorChain(
-            interceptors = globalPopInterceptors + pageInterceptors,
+            interceptors = globalInterceptors + pageInterceptors,
             index = 0,
             request = request,
             navigator = navigator,

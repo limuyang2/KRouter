@@ -140,6 +140,62 @@ class Navigator(startDestination: Any, builder: Builder.() -> Unit = {}) {
     inline fun <reified T : Any> unprotect() = unprotect(T::class)
 
     /**
+     * 运行期为当前 Navigator 的 Push 链添加拦截器；相同实例不会重复添加，同优先级时排在已有拦截器之后。
+     *
+     * Adds a Push interceptor to this Navigator's chain at runtime. The same instance is not added twice;
+     * equal-priority interceptors are appended after existing ones.
+     *
+     * Call on the same UI thread used for this Navigator's navigation operations.
+     *
+     * @param interceptor 要添加的拦截器 / Interceptor to add.
+     * @param priority 优先级，数值越小越先执行 / Priority; smaller values run first.
+     * @return 注册表发生变化时返回 true / True if the registry changed.
+     */
+    fun addPushInterceptor(interceptor: IRouterPushInterceptor, priority: Int = 10): Boolean =
+        core.addPushInterceptor(interceptor, priority)
+
+    /**
+     * 按实例身份从当前 Navigator 的 Push 链移除拦截器。
+     *
+     * Removes a Push interceptor from this Navigator's chain by instance identity.
+     *
+     * Call on the same UI thread used for this Navigator's navigation operations.
+     *
+     * @param interceptor 要移除的拦截器 / Interceptor to remove.
+     * @return 注册表发生变化时返回 true / True if the registry changed.
+     */
+    fun removePushInterceptor(interceptor: IRouterPushInterceptor): Boolean =
+        core.removePushInterceptor(interceptor)
+
+    /**
+     * 运行期为当前 Navigator 的 Pop 链添加拦截器；相同实例不会重复添加，同优先级时排在已有拦截器之后。
+     *
+     * Adds a Pop interceptor to this Navigator's chain at runtime. The same instance is not added twice;
+     * equal-priority interceptors are appended after existing ones.
+     *
+     * Call on the same UI thread used for this Navigator's navigation operations.
+     *
+     * @param interceptor 要添加的拦截器 / Interceptor to add.
+     * @param priority 优先级，数值越小越先执行 / Priority; smaller values run first.
+     * @return 注册表发生变化时返回 true / True if the registry changed.
+     */
+    fun addPopInterceptor(interceptor: IRouterPopInterceptor, priority: Int = 10): Boolean =
+        core.addPopInterceptor(interceptor, priority)
+
+    /**
+     * 按实例身份从当前 Navigator 的 Pop 链移除拦截器。
+     *
+     * Removes a Pop interceptor from this Navigator's chain by instance identity.
+     *
+     * Call on the same UI thread used for this Navigator's navigation operations.
+     *
+     * @param interceptor 要移除的拦截器 / Interceptor to remove.
+     * @return 注册表发生变化时返回 true / True if the registry changed.
+     */
+    fun removePopInterceptor(interceptor: IRouterPopInterceptor): Boolean =
+        core.removePopInterceptor(interceptor)
+
+    /**
      * 当前受保护页面类型的只读快照。
      *
      * Read-only snapshot of the currently protected page classes.

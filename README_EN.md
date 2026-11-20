@@ -619,6 +619,8 @@ When a Push interceptor rewrites the target type, the applicable interceptor cha
 
 Global interceptors apply to every `Navigator` by default. Use `navigatorTags` on `@RouterGlobalPushInterceptor` / `@RouterGlobalPopInterceptor` to limit them, and add tags when constructing a Navigator with `Navigator(start) { tags("main") }`. Tags use OR matching; an empty `navigatorTags` means unrestricted, while a Navigator with no tags only receives unrestricted global interceptors. `chain.navigator()` returns the `Navigator` executing the current operation, allowing multi-stack setups to inspect the owning stack. Reentrant push/pop is discouraged: it starts another interceptor chain whose ordering against the current operation is undefined. The pop interceptor chain exposes the same method.
 
+At runtime, use `navigator.addPushInterceptor(...)` / `removePushInterceptor(...)` or the corresponding Pop APIs to update one Navigator's interceptor chain. Registration is deduplicated by instance identity, sorted by ascending priority, and new interceptors are placed after existing entries at the same priority. The methods return `Boolean` to indicate whether the registry changed. Each navigation captures its interceptor snapshot when it starts, so updates do not affect an in-flight chain. Call these APIs on the UI thread used by that Navigator.
+
 The start destination is the stack's initial state, not a navigation: `Navigator` seeds it synchronously during construction without push interceptors and without emitting `BackStackEvent.Push`. For a conditional start page (e.g. a login gate), choose the `startDestination` before construction, or navigate explicitly once the initial page is in place.
 
 ### Pop: inspect bound pages
